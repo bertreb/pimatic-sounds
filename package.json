@@ -30,8 +30,9 @@
   },
   "configSchema": "pimatic-sounds-config-schema.coffee",
   "dependencies": {
-    "dateformat": "^3.0.3",
+    "http": "^3.0.3",
     "lodash": "^4.17.15",
+    "path": "^0.12.7",
     "os": "^0.1.1"
   },
   "peerDependencies": {

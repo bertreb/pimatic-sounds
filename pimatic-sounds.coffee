@@ -1,7 +1,6 @@
 module.exports = (env) ->
   Promise = env.require 'bluebird'
   assert = env.require 'cassert'
-  #dateFormat = require('dateformat')
   http = require('http')
   fs = require('fs')
   path = require('path')
