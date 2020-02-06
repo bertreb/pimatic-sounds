@@ -1,0 +1,43 @@
+{
+  "name": "pimatic-sounds",
+  "description": "playing sounds and tts sentences on Chromecast devices",
+  "author": {
+    "name": "Bert Gierveld",
+    "email": "gitbertreb@gmail.com",
+    "url": "https://github.com/bertreb"
+  },
+  "main": "pimatic-sounds",
+  "files": [
+    "pimatic-sounds.coffee",
+    "pimatic-sounds-config-schema.coffee",
+    "device-config-schema.coffee",
+    "README.md",
+    "LICENSE",
+    "HISTORY.md"
+  ],
+  "homepage": "https://github.com/bertreb/pimatic-sounds.git",
+  "keywords": [
+    "pimatic",
+    "sounds",
+    "tts",
+    "chromecast"
+  ],
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bertreb/pimatic-sounds.git"
+  },
+  "configSchema": "pimatic-sounds-config-schema.coffee",
+  "dependencies": {
+    "dateformat": "^3.0.3",
+    "lodash": "^4.17.15",
+    "os": "^0.1.1"
+  },
+  "peerDependencies": {
+    "pimatic": "0.9.*"
+  },
+  "engines": {
+    "node": ">=4",
+    "npm": ">=2"
+  }
+}
