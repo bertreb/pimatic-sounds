@@ -17,7 +17,7 @@ After installation and restart activate the plugin and add the following to the 
 
 ```
 The IP address of the computer the plugin is running on, is automatically detected and used for the media server.
-The supported (but not tested) languages can be found in the file [languages](https://github.com/bertreb/pimatic-sounds/blob/master/languages).
+The supported (but not tested) languages can be found in  [languages](https://github.com/bertreb/pimatic-sounds/blob/master/languages).
 
 Create a SoundsDevice with the following config
 
