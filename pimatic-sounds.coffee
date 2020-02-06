@@ -47,7 +47,7 @@ module.exports = (env) ->
       #@serverIp = @plugin.config.ip
       @serverPort = @plugin.config.port
       baseUrl = "http://" + @serverIp + ":" + @serverPort
-      @dir = @plugin.dir
+      @soundsDir = @plugin.dir
       env.logger.debug "@Dir " + @dir
       @filename = @id + "_text.mp3"
       @media =
@@ -56,7 +56,7 @@ module.exports = (env) ->
         filename: @filename
 
       @server = http.createServer((req, res) =>
-        fs.readFile @dir + "/" + req.url, (err, data) ->
+        fs.readFile @soundsDir + "/" + req.url, (err, data) ->
           if err
             res.writeHead 404
             res.end JSON.stringify(err)
@@ -219,7 +219,8 @@ module.exports = (env) ->
         switch @soundType
           when "text"           
             env.logger.debug "Creating sound file... with text: " + @text
-            @soundsDevice.gtts.save(@soundsDevice.dir + "/" + @soundsDevice.filename, @text, (err) =>
+            env.logger.info "fullfile " + @soundsDevice.soundsDir + "/" + @soundsDevice.filename
+            @soundsDevice.gtts.save(@soundsDevice.soundsDir + "/" + @soundsDevice.filename, @text, (err) =>
               if err?
                 return __("\"%s\" was not generated", @text)
               env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
