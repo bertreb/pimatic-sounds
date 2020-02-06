@@ -44,7 +44,7 @@ module.exports = (env) ->
       unless @serverIp?
         throw new Error "No IP address found!"
       #@serverIp = @plugin.config.ip
-      @serverPort = @plugin.config.port
+      @serverPort = @plugin.config.port ? 8088
       baseUrl = "http://" + @serverIp + ":" + @serverPort
       @soundsDir = @plugin.dir
       env.logger.debug "@Dir " + @dir

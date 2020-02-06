@@ -6,11 +6,11 @@ module.exports = {
   	port:
   	  descpription: "The port number of the chromecast device"
   	  type: "number"
-  	  default: 8080
+  	  default: 8088
   	language:
   	  descpription: "The language used in text-to-speech"
   	  type: "string"
-  	  default: "en"  	
+  	  default: "en"
     debug:
       description: "Debug mode. Writes debug messages to the pimatic log, if set to true."
       type: "boolean"
