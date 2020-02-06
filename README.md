@@ -34,7 +34,12 @@ Create a SoundsDevice with the following config
 The function is controlled via rules
 The ACTION rule syntax is:
 
-**play** [text|file] ["test text for tts"|"filename"] **vol** [0-100] **on** [SoundsDevice]
+**play** [text|file|stop] ["test text for tts"|"filename"] **vol** [0-100] **on** [SoundsDevice]
+
+The 3 type of command lines are:
+1. play text "this is a nice text" vol 50 on mychromecast
+2. play file "nice-music.mp3" vol 25 on mychromecast
+3. play stop mychromecast  // stops current playing sound
 
 In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sounds is created. You can put mp3 files in that directory. You can create subdirectories in sounds and can use them in the rule.
 
