@@ -7,8 +7,6 @@ module.exports = (env) ->
   _ = require('lodash')
   M = env.matcher
   Os = require('os')
-  #Device = require('chromecast-api')
-  Device = require('./node_modules/chromecast-api/lib/device')
 
   class SoundsPlugin extends env.plugins.Plugin
     init: (app, @framework, @config) =>
@@ -72,6 +70,7 @@ module.exports = (env) ->
         socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
         #env.logger.error "Error in serverClient: " + err
 
+      Device = require('chromecast-api/lib/device')
       opts =
         name: @config.name
         host: @config.ip
