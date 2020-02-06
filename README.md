@@ -32,7 +32,7 @@ create a SoundsDevice with the following config
 The function is controlled via rules
 The ACTION rule syntax is
 
-***play*** [text|file] ["test for tts"|"filename"] ***vol*** [0-100] ***on*** [SoundsDevice]
+**play** [text|file] ["test for tts"|"filename"] **vol** [0-100] **on** [SoundsDevice]
 
 In the min directory of Pimatic (/home/pi/pimatic-app) a directory sounds is created. You can put mp3 files in that directory. You can create subdirectories and can use them in the rule.
 
