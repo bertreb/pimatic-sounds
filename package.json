@@ -23,7 +23,7 @@
     "tts",
     "chromecast"
   ],
-  "version": "0.0.3",
+  "version": "0.0.4",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/bertreb/pimatic-sounds.git"
@@ -31,7 +31,6 @@
   "configSchema": "pimatic-sounds-config-schema.coffee",
   "dependencies": {
     "chromecast-api": "^0.3.1",
-    "http": "^3.0.3",
     "lodash": "^4.17.15",
     "os": "^0.1.1",
     "path": "^0.12.7"
