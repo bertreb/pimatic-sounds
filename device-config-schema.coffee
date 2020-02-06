@@ -10,7 +10,7 @@ module.exports = {
         type: "string"
         required: true
       ip:
-        descpription: "the IP address of the chromecast device"
+        descpription: "the IP address of the Chromecast device"
         type: "string"
         required: true
   }
