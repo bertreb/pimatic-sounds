@@ -16,7 +16,7 @@ After installation and restart activate the plugin and add the following to the 
 }
 
 ```
-The IP address of the computer the plugin is running on, is automatically detected and used for the media server.
+The IP address of the computer the plugin is running on, is automatically detected and used for the media server. It must be in the range 192.168.xxx.xxx.
 The supported (but not tested) languages can be found in  [languages](https://github.com/bertreb/pimatic-sounds/blob/master/languages).
 
 Create a SoundsDevice with the following config
@@ -26,7 +26,7 @@ Create a SoundsDevice with the following config
   "id": "testcast",         // id for usage within Pimatic
   "name": "testcast",       // name for usage within Pimatic
   "class": "SoundsDevice"
-  "ip": "192.168.xxx.xxx",  // IP of the  Chromecast device
+  "ip": "192.168.xxx.xxx",  // IP of your Chromecast device
   "xAttributeOptions": [],
 }
 ```
