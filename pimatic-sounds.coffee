@@ -194,6 +194,8 @@ module.exports = (env) ->
       unless volume?
         volume = @mainVolume
 
+
+
       if match? # m.hadMatch()
         env.logger.debug "Rule matched: '", match, "' and passed to Action handler"
         return {
@@ -256,12 +258,14 @@ module.exports = (env) ->
               return __("\"%s\" was played with volume set", @text)
             )
           when "stop"
-            @soundsDevice.gaDevice.stop((err) =>
-              if err?
-                env.logger.error "Error stopping track " + err
-                return __("\"%s\" was not stopped", @text)
-              return __("\"%s\" was stopped", @text)
-            )
+            if @soundsDevice.gaDevice.client?
+              @soundsDevice.gaDevice.stop((err) =>
+                if err?
+                  env.logger.error "Error stopping track " + err
+                  return __("\"%s\" nothing to stop", @text)
+                return __("\"%s\" is stopped", @text)
+              )
+            return __("#{@soundsDevice.id} is already stopped", @text)
           else
             env.logger.error 'error: unknown playtype'
             return __("\"%s\" unknown playtype", @soundType)
