@@ -13,7 +13,8 @@
     "device-config-schema.coffee",
     "README.md",
     "LICENSE",
-    "HISTORY.md"
+    "HISTORY.md",
+    "languages"
   ],
   "homepage": "https://github.com/bertreb/pimatic-sounds.git",
   "keywords": [
