@@ -46,4 +46,4 @@ In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sound
 The mp3 filenames ***must be without spaces!***
 
 ----
-The plugin is Node v10 compatible and in development. You could backup Pimatic before you are using this plugin!
+This plugin is NOT node v4 or v6 compatible. The plugin is Node v8 or v10 compatible and in development. You could backup Pimatic before you are using this plugin!
