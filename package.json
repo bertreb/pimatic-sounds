@@ -1,6 +1,6 @@
 {
   "name": "pimatic-sounds",
-  "description": "playing sounds and tts sentences on Chromecast devices",
+  "description": "playing mp3 files and tts sentences on Chromecast devices",
   "author": {
     "name": "Bert Gierveld",
     "email": "gitbertreb@gmail.com",

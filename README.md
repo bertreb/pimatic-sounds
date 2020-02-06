@@ -1,5 +1,5 @@
 # pimatic-sounds
-Pimatic plugin for playing sounds and tts sentences on Chromecast devices
+Pimatic plugin for playing mp3 files and tts sentences on Chromecast devices
 
 Install the plugin via the plugin page of Pimatic or add the following in config.json
 ```
