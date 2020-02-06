@@ -42,7 +42,7 @@ module.exports = (env) ->
           if add.address.startsWith('192.168.')
             @serverIp = add.address
             env.logger.debug "Found IP adddress: " + @serverIp
-      unless @serverIp? 
+      unless @serverIp?
         throw new Error "No IP address found!"
       #@serverIp = @plugin.config.ip
       @serverPort = @plugin.config.port
@@ -66,22 +66,20 @@ module.exports = (env) ->
           return
         return
       ).listen(@serverPort)
-      
-      @server.on 'clientError', (err, socket) => 
+
+      @server.on 'clientError', (err, socket) =>
         socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
         #env.logger.error "Error in serverClient: " + err
 
       Device = require('chromecast-api/lib/device')
-      opts = 
-        name: @config.name 
+      opts =
+        name: @config.name
         host: @config.ip
       @gaDevice = new Device(opts)
 
       @gaDevice.on 'status', (status) =>
         env.logger.debug "cast device got status " + status.playerState
 
-      env.logger.info "@config.castDevices[0].ip " + @config.ip
-      
       super()
 
     destroy: ->
@@ -130,10 +128,10 @@ module.exports = (env) ->
             return
           else if stats.isDirectory()
             context?.addError("'" + fullfilename + "' is a directory")
-            return            
-          else 
+            return
+          else
             context?.addError("File " + fullfilename + "' does not excist")
-            return            
+            return
         catch err
           context?.addError("File " + fullfilename + "' does not excist")
           return
@@ -161,15 +159,15 @@ module.exports = (env) ->
       m = M(input, context)
         .match('play ')
         .or([
-          ((m) => 
+          ((m) =>
             return m.match('text ', optional: yes)
               .matchString(setText)
           ),
-          ((m) => 
+          ((m) =>
             return m.match('file ', optional: yes)
               .matchString(setFilename)
           ),
-          ((m) => 
+          ((m) =>
             return m.match('stop ', optional: yes)
               .matchDevice(soundsDevices, (m, d) ->
                 # Already had a match with another device?
@@ -217,9 +215,8 @@ module.exports = (env) ->
         return __("would save file \"%s\"", @text)
       else
         switch @soundType
-          when "text"           
+          when "text"
             env.logger.debug "Creating sound file... with text: " + @text
-            env.logger.info "fullfile " + @soundsDevice.soundsDir + "/" + @soundsDevice.filename
             @soundsDevice.gtts.save(@soundsDevice.soundsDir + "/" + @soundsDevice.filename, @text, (err) =>
               if err?
                 return __("\"%s\" was not generated", @text)
@@ -232,7 +229,7 @@ module.exports = (env) ->
                 @soundsDevice.gaDevice.setVolume((Number @volume/100), (err) =>
                   if err?
                     env.logger.error "Error setting volume " + err
-                    return __("\"%s\" was played but volume was not set", @text)              
+                    return __("\"%s\" was played but volume was not set", @text)
                   return __("\"%s\" was played with volume set", @text)
                 )
               )
@@ -248,7 +245,7 @@ module.exports = (env) ->
               @soundsDevice.gaDevice.setVolume((Number @volume/100), (err) =>
                 if err?
                   env.logger.error "Error setting volume " + err
-                  return __("\"%s\" was played but volume was not set", @text)              
+                  return __("\"%s\" was played but volume was not set", @text)
                 return __("\"%s\" was played with volume set", @text)
               )
             )
@@ -256,14 +253,14 @@ module.exports = (env) ->
             @soundsDevice.gaDevice.setVolume((Number @volume/100), (err) =>
               if err?
                 env.logger.error "Error setting volume " + err
-                return __("\"%s\" was played but volume was not set", @text)              
+                return __("\"%s\" was played but volume was not set", @text)
               return __("\"%s\" was played with volume set", @text)
             )
           when "stop"
             @soundsDevice.gaDevice.stop((err) =>
               if err?
                 env.logger.error "Error stopping track " + err
-                return __("\"%s\" was not stopped", @text)              
+                return __("\"%s\" was not stopped", @text)
               return __("\"%s\" was stopped", @text)
             )
           else
