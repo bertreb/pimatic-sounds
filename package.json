@@ -14,7 +14,8 @@
     "README.md",
     "LICENSE",
     "HISTORY.md",
-    "languages"
+    "languages",
+    "initSound.mp3"
   ],
   "homepage": "https://github.com/bertreb/pimatic-sounds.git",
   "keywords": [

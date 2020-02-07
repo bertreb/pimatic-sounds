@@ -27,6 +27,7 @@ Create a SoundsDevice with the following config
   "name": "testcast",       // name for usage within Pimatic
   "class": "SoundsDevice"
   "ip": "192.168.xxx.xxx",  // IP of your Chromecast device
+  "playInit": true          // plays initSound.mp3 after (re)start of device
   "xAttributeOptions": [],
 }
 ```
@@ -50,6 +51,6 @@ The 'vol [0-100]' after text or file is optional and will override the mainvolum
 The mp3 filenames ***must be without spaces!***
 
 ----
-This plugin is NOT node v4 or v6 compatible. The plugin is Node v8 or v10 compatible and in development.
+The plugin is **only Node v8 or v10** compatible and in development.
 
 You could backup Pimatic before you are using this plugin!

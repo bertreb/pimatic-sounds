@@ -8,3 +8,4 @@
 		* added dependency
 * 20200207, v0.0.10
 	* extra main volume command
+	* added initSound on (re)start of device

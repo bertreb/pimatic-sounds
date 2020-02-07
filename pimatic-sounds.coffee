@@ -11,10 +11,20 @@ module.exports = (env) ->
   class SoundsPlugin extends env.plugins.Plugin
     init: (app, @framework, @config) =>
 
-      @dir = path.resolve @framework.maindir, '../..', 'sounds'
-      if !fs.existsSync(@dir)
-        env.logger.debug "Dir " + @dir + " doesn't exist, is created"
-        fs.mkdirSync(@dir)
+      @soundsDir = path.resolve @framework.maindir, '../..', 'sounds'
+      @pluginDir = path.resolve @framework.maindir, "../pimatic-sounds"
+      @initFilename = "initSound.mp3"
+      if !fs.existsSync(@soundsDir)
+        env.logger.debug "Dir " + @soundsDir + " doesn't exist, is created"
+        fs.mkdirSync(@soundsDir)
+      else
+        fullFilename = @soundsDir + "/" + @initFilename
+        unless fs.existsSync(fullFilename)
+          sourceInitFullfinename = @pluginDir + "/" + @initFilename
+          fs.copyFile sourceInitFullfinename, fullFilename, (err) =>
+            if err
+              env.logger.error "InitSounds not copied " + err
+            env.logger.debug "InitSounds copied to sounds directory"
 
       pluginConfigDef = require './pimatic-sounds-config-schema'
       @configProperties = pluginConfigDef.properties
@@ -25,13 +35,36 @@ module.exports = (env) ->
         createCallback: (config, lastState) => new SoundsDevice(config, lastState, @framework, @)
       })
       @soundsClasses = ["SoundsDevice"]
-      @framework.ruleManager.addActionProvider(new SoundsActionProvider(@framework, @soundsClasses, @dir))
+      @framework.ruleManager.addActionProvider(new SoundsActionProvider(@framework, @soundsClasses, @soundsDir))
 
   class SoundsDevice extends env.devices.Device
 
     constructor: (@config, lastState, @framework, @plugin) ->
       @id = @config.id
       @name = @config.name
+
+      if @_destroyed then return
+
+      @textFilename = @id + "_text.mp3"
+      @serverPort = @plugin.config.port ? 8088
+      @mainVolume = 40
+      @soundsDir = @plugin.soundsDir
+
+      @attributes = {}
+      @attributeValues = {}
+      _attrs = ["status"]
+      for _attr in _attrs
+        @attributes[_attr] =
+          description: "The " + _attr
+          type: "string"
+          label: _attr
+          acronym: _attr
+        @attributeValues[_attr] = ""
+        @_createGetter(_attr, =>
+          return Promise.resolve @attributeValues[_attr]
+        )
+        @setAttribute _attr, @attributeValues[_attr]
+      @setAttribute("status","idle")
 
       @language = @plugin.config.language ? "en"
       @gtts = require('node-gtts')(@language)
@@ -43,19 +76,14 @@ module.exports = (env) ->
             env.logger.debug "Found IP adddress: " + @serverIp
       unless @serverIp?
         throw new Error "No IP address found!"
-      #@serverIp = @plugin.config.ip
-      @serverPort = @plugin.config.port ? 8088
-      baseUrl = "http://" + @serverIp + ":" + @serverPort
-      @soundsDir = @plugin.dir
-      env.logger.debug "@Dir " + @dir
-      @filename = @id + "_text.mp3"
-      @media =
-        url: baseUrl + "/" + @filename
-        base: baseUrl
-        filename: @filename
 
+      baseUrl = "http://" + @serverIp + ":" + @serverPort
+      @media =
+        url: baseUrl + "/" + @textFilename
+        base: baseUrl
+        filename: @textFilename
       @server = http.createServer((req, res) =>
-        fs.readFile @soundsDir + "/" + req.url, (err, data) ->
+        fs.readFile @plugin.soundsDir + "/" + req.url, (err, data) ->
           if err
             res.writeHead 404
             res.end JSON.stringify(err)
@@ -68,22 +96,51 @@ module.exports = (env) ->
 
       @server.on 'clientError', (err, socket) =>
         socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
-        #env.logger.error "Error in serverClient: " + err
 
       Device = require('chromecast-api/lib/device')
       opts =
-        name: @config.name
         host: @config.ip
       @gaDevice = new Device(opts)
 
+      #@framework.variableManager.waitForInit()
+      #.then(() =>
+      #)
       @gaDevice.on 'status', (status) =>
         env.logger.debug "cast device got status " + status.playerState
+        @setAttribute("status", (status.playerState).toLowerCase())
+      if @config.playInit or !(@config.playInit?)
+        @playInit()
 
       super()
 
+
+    setAttribute: (attr, _status) =>
+      @attributeValues[attr] = _status
+      @emit attr, @attributeValues[attr]
+
+    playInit: () =>
+      _url = @media.base + "/" + @plugin.initFilename
+      env.logger.debug "Playing init sound file... " + _url
+      @gaDevice.play(_url, (err) =>
+        if err?
+          env.logger.error 'error: ' + err
+        env.logger.debug 'Playing initSounds with volume ' + @mainVolume
+        try 
+          @gaDevice.setVolume(@mainVolume/100, (err) =>
+            if err?
+              env.logger.error "Error setting volume " + err
+            env.logger.debug 'InitSounds ready'
+          )
+        catch err
+          env.logger.debug "PlayInit device error " + err
+      )
+
+
     destroy: ->
       @server.close()
+      @server.removeAllListeners()
       @gaDevice.close()
+      @gaDevice.removeAllListeners()
       super()
 
 
@@ -245,7 +302,7 @@ module.exports = (env) ->
         switch @soundType
           when "text"
             env.logger.debug "Creating sound file... with text: " + @text
-            @soundsDevice.gtts.save(@soundsDevice.soundsDir + "/" + @soundsDevice.filename, @text, (err) =>
+            @soundsDevice.gtts.save(@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename, @text, (err) =>
               if err?
                 return __("\"%s\" was not generated", @text)
               env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
