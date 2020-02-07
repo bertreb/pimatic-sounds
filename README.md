@@ -45,7 +45,7 @@ The 4 type of command lines are:
 In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sounds is created. You can put mp3 files in that directory. You can create subdirectories in sounds and can use them in the rule.
 
 You can set the mainvolume with the command 'play vol [0-100] on mychromecast'.
-The 'vol [0-100]' after text or file is optional and will override the mainvolume. Is not set the value of the mainvolume is 20.
+The 'vol [0-100]' after text or file is optional and will override the mainvolume. If not set, the value of the mainvolume is 20.
 
 The mp3 filenames ***must be without spaces!***
 
