@@ -91,7 +91,7 @@ module.exports = (env) ->
 
     constructor: (@framework, @soundsClasses, @dir) ->
       @root = @dir
-      @mainVolume = 0
+      @mainVolume = 20
 
     _soundsClasses: (_cl) =>
       for _soundsClass in @soundsClasses
@@ -177,24 +177,51 @@ module.exports = (env) ->
                 soundsDevice = d
                 match = m.getFullMatch()
               )
+          ),
+          ((m) =>
+            return m.match('vol ', optional: yes)
+              .matchNumber(setMainVolume)
+              .match(' on ')
+              .matchDevice(soundsDevices, (m, d) ->
+                # Already had a match with another device?
+                if soundsDevice? and soundsDevice.id isnt d.id
+                  context?.addError(""""#{input.trim()}" is ambiguous.""")
+                  return
+                soundType = "vol"
+                soundsDevice = d
+                match = m.getFullMatch()
+              )
           )
         ])
-        .match(' vol ', optional:yes)
-        .matchNumber(setVolume)
-        .match(' on ')
-        .matchDevice(soundsDevices, (m, d) ->
-          # Already had a match with another device?
-          if soundsDevice? and soundsDevice.id isnt d.id
-            context?.addError(""""#{input.trim()}" is ambiguous.""")
-            return
-          soundsDevice = d
-          match = m.getFullMatch()
-        )
+        .or([
+          ((m) =>
+            return m.match(' vol ', optional: yes)
+              .matchNumber(setVolume)
+              .match(' on ')
+              .matchDevice(soundsDevices, (m, d) ->
+                # Already had a match with another device?
+                if soundsDevice? and soundsDevice.id isnt d.id
+                  context?.addError(""""#{input.trim()}" is ambiguous.""")
+                  return
+                soundsDevice = d
+                match = m.getFullMatch()
+              )
+          ),
+          ((m) =>
+            return m.match(' on ')
+              .matchDevice(soundsDevices, (m, d) ->
+                # Already had a match with another device?
+                if soundsDevice? and soundsDevice.id isnt d.id
+                  context?.addError(""""#{input.trim()}" is ambiguous.""")
+                  return
+                soundsDevice = d
+                match = m.getFullMatch()
+              )
+          )
+        ])
 
       unless volume?
         volume = @mainVolume
-
-
 
       if match? # m.hadMatch()
         env.logger.debug "Rule matched: '", match, "' and passed to Action handler"
