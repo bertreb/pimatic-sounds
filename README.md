@@ -41,6 +41,7 @@ The 4 type of command lines are:
 2. **play file** "nice-music.mp3" **vol** 25 **on** mychromecast
 3. **play stop** mychromecast  // stops current playing sound
 4. **play vol** [0-100] **on** mychromecast
+
 In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sounds is created. You can put mp3 files in that directory. You can create subdirectories in sounds and can use them in the rule.
 
 You can set the mainvolume with the command 'play vol [0-100] on mychromecast'.
