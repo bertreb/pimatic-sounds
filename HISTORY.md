@@ -9,3 +9,5 @@
 * 20200207, v0.0.11
 	* extra main volume command
 	* added initSound on (re)start of device
+* 20200208, v0.0.12
+	* rename 1e device to ChromecastDevice

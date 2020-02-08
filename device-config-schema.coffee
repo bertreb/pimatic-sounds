@@ -1,12 +1,12 @@
 module.exports = {
   title: "pimatic-sounds device config schemas"
-  SoundsDevice: {
-    title: "Sounds config options"
+  ChromecastDevice: {
+    title: "ChromecastDevice config options"
     type: "object"
     extensions: ["xLink", "xAttributeOptions"]
     properties:
       ip:
-        descpription: "the IP address of the Chromecast device"
+        descpription: "The IP address of the Chromecast device"
         type: "string"
         required: true
       playInit:

@@ -26,18 +26,25 @@ module.exports = (env) ->
               env.logger.error "InitSounds not copied " + err
             env.logger.debug "InitSounds copied to sounds directory"
 
+      oldClassName = "SoundsDevice"
+      newClassName = "ChromecastDevice"
+      for device,i in @framework.config.devices
+        if device.class == oldClassName
+          @framework.config.devices[i].class = newClassName
+          env.logger.debug "Class '#{oldClassName}' of device '#{device.id}' migrated to #{newClassName}"
+
       pluginConfigDef = require './pimatic-sounds-config-schema'
       @configProperties = pluginConfigDef.properties
 
       deviceConfigDef = require("./device-config-schema")
-      @framework.deviceManager.registerDeviceClass('SoundsDevice', {
-        configDef: deviceConfigDef.SoundsDevice,
-        createCallback: (config, lastState) => new SoundsDevice(config, lastState, @framework, @)
+      @framework.deviceManager.registerDeviceClass('ChromecastDevice', {
+        configDef: deviceConfigDef.ChromecastDevice,
+        createCallback: (config, lastState) => new ChromecastDevice(config, lastState, @framework, @)
       })
-      @soundsClasses = ["SoundsDevice"]
+      @soundsClasses = ["ChromecastDevice"]
       @framework.ruleManager.addActionProvider(new SoundsActionProvider(@framework, @soundsClasses, @soundsDir))
 
-  class SoundsDevice extends env.devices.Device
+  class ChromecastDevice extends env.devices.Device
 
     constructor: (@config, lastState, @framework, @plugin) ->
       @id = @config.id
@@ -125,7 +132,7 @@ module.exports = (env) ->
         if err?
           env.logger.error 'error: ' + err
         env.logger.debug 'Playing initSounds with volume ' + @mainVolume
-        try 
+        try
           @gaDevice.setVolume(@mainVolume/100, (err) =>
             if err?
               env.logger.error "Error setting volume " + err
