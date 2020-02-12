@@ -11,3 +11,5 @@
 	* added initSound on (re)start of device
 * 20200208, v0.0.12
 	* rename 1e device to ChromecastDevice
+* 20200212, v0.0.13
+	* replay of TuneIn stream after Text or File play

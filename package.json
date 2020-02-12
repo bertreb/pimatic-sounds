@@ -24,18 +24,23 @@
     "tts",
     "chromecast"
   ],
-  "version": "0.0.12",
+  "version": "0.0.13",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/bertreb/pimatic-sounds.git"
   },
   "configSchema": "pimatic-sounds-config-schema.coffee",
   "dependencies": {
+    "castv2-client": "^1.2.0",
+    "castv2-player": "^2.1.0",
     "chromecast-api": "^0.3.1",
+    "google-home-notify-client": "^0.3.1",
     "lodash": "^4.17.15",
+    "node-gtts": "^2.0.2",
     "os": "^0.1.1",
     "path": "^0.12.7",
-    "node-gtts": "^2.0.2"
+    "ping": "^0.2.2",
+    "sonos": "^1.12.6"
   },
   "peerDependencies": {
     "pimatic": "0.9.*"

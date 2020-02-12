@@ -35,18 +35,19 @@ Create the ChromecastDevice with the following config.
 The function is controlled via rules
 The ACTION rule syntax is:
 
-**play** [text|file|stop|vol] ["test text for tts"|"filename"] [**vol** [0-100]] **on** [ChromecastDevice]
+**play** [text|file|vol] ["test text for tts"|"filename"] [**vol** [0-100]] **on** [ChromecastDevice]
 
-The 4 type of command lines are:
+The 3 type of command lines are:
 1. **play text** "this is a nice text" **vol** 50 **on** mysoundsdevice
 2. **play file** "nice-music.mp3" **vol** 25 **on** mysoundsdevice
-3. **play stop** mysoundsdevice  // stops current playing sound
 4. **play vol** [0-100] **on** mysoundsdevice
 
 In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sounds is created. You can put mp3 files in that directory. You can create subdirectories in sounds and can use them in the rule.
 
 You can set the mainvolume with the command 'play vol [0-100] on mysoundsdevice'.
 The 'vol [0-100]' after text or file is optional and will override the mainvolume. If not set, the value of the mainvolume is 20.
+
+When a TuneIn stream is playing and Sounds plays a text or file, the TuneIn Stream stops and is resumed after the Sounds play is finished.
 
 The mp3 filenames ***must be without spaces!***
 

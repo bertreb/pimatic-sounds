@@ -7,12 +7,16 @@ module.exports = (env) ->
   _ = require('lodash')
   M = env.matcher
   Os = require('os')
+  ping = require ("ping")
+  Device = require('castv2-client').Client
+  DefaultMediaReceiver = require('castv2-client').DefaultMediaReceiver
 
   class SoundsPlugin extends env.plugins.Plugin
     init: (app, @framework, @config) =>
 
       @soundsDir = path.resolve @framework.maindir, '../..', 'sounds'
       @pluginDir = path.resolve @framework.maindir, "../pimatic-sounds"
+
       @initFilename = "initSound.mp3"
       if !fs.existsSync(@soundsDir)
         env.logger.debug "Dir " + @soundsDir + " doesn't exist, is created"
@@ -51,15 +55,14 @@ module.exports = (env) ->
       @name = @config.name
 
       if @_destroyed then return
+      @deviceStatus = off
 
-      @textFilename = @id + "_text.mp3"
-      @serverPort = @plugin.config.port ? 8088
-      @mainVolume = 40
-      @soundsDir = @plugin.soundsDir
-
+      #
+      # Configure attributes
+      #
       @attributes = {}
       @attributeValues = {}
-      _attrs = ["status"]
+      _attrs = ["status","info"]
       for _attr in _attrs
         @attributes[_attr] =
           description: "The " + _attr
@@ -70,9 +73,39 @@ module.exports = (env) ->
         @_createGetter(_attr, =>
           return Promise.resolve @attributeValues[_attr]
         )
-        @setAttribute _attr, @attributeValues[_attr]
-      @setAttribute("status","idle")
+        @setAttr _attr, @attributeValues[_attr]
+      @setAttr("status","starting")
 
+      #
+      # Check if Device is online
+      #
+      @ip = @config.ip
+      @onlineChecker = () =>
+        env.logger.debug "Check online status device '#{@id}"
+        ping.promise.probe(@ip,{timeout: 2})
+        .then((host)=>
+          if host.alive
+            startupTime = () =>
+              env.logger.debug "Device '#{@id}' is online"
+              @deviceStatus = on
+              @setAttr("status","online")
+              @initSounds()
+            @startupTimer = setTimeout(startupTime,5000)
+          else
+            @deviceStatus = off
+            @setAttr("status","offline")
+            env.logger.error "Device '#{@id}' offline"
+            @onlineCheckerTimer = setTimeout(@onlineChecker,30000)
+        )
+      @onlineChecker()
+
+      super()
+
+    initSounds: () =>
+
+      #
+      # Configure tts
+      #
       @language = @plugin.config.language ? "en"
       @gtts = require('node-gtts')(@language)
 
@@ -84,6 +117,14 @@ module.exports = (env) ->
       unless @serverIp?
         throw new Error "No IP address found!"
 
+      #
+      # The mediaserver and text settings and start of media server
+      #
+      @textFilename = @id + "_text.mp3"
+      @serverPort = @plugin.config.port ? 8088
+      @mainVolume = 0.40
+      @initVolume = 0.40
+      @soundsDir = @plugin.soundsDir
       baseUrl = "http://" + @serverIp + ":" + @serverPort
       @media =
         url: baseUrl + "/" + @textFilename
@@ -104,50 +145,202 @@ module.exports = (env) ->
       @server.on 'clientError', (err, socket) =>
         socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
 
-      Device = require('chromecast-api/lib/device')
-      opts =
-        host: @config.ip
-      @gaDevice = new Device(opts)
+      #
+      # The sounds states setup
+      #
+      @announcement = false
+      @devicePlaying = false
+      @deviceReplaying = false
+      @devicePlayingUrl = ""
+      @deviceReplayingUrl = ""
 
-      #@framework.variableManager.waitForInit()
-      #.then(() =>
-      #)
-      @gaDevice.on 'status', (status) =>
-        env.logger.debug "cast device got status " + status.playerState
-        @setAttribute("status", (status.playerState).toLowerCase())
-      if @config.playInit or !(@config.playInit?)
-        @playInit()
-
-      super()
-
-
-    setAttribute: (attr, _status) =>
-      @attributeValues[attr] = _status
-      @emit attr, @attributeValues[attr]
-
-    playInit: () =>
-      _url = @media.base + "/" + @plugin.initFilename
-      env.logger.debug "Playing init sound file... " + _url
-      @gaDevice.play(_url, (err) =>
+      #
+      # The chromecast setup
+      #
+      @gaDevice = new Device()
+      @gaDevice.connect(@ip, (err) =>
         if err?
-          env.logger.error 'error: ' + err
-        env.logger.debug 'Playing initSounds with volume ' + @mainVolume
-        try
-          @gaDevice.setVolume(@mainVolume/100, (err) =>
+          env.logger.error "Connect error " + err.message
+          return
+        @deviceStatus = on
+        env.logger.info "Device connected"
+        #
+        # The chromecast player device
+        #
+        @gaDevice.launch(DefaultMediaReceiver, (err, app) =>
+          if err?
+            env.logger.error "Join error " + err.message
+            return
+          env.logger.debug "Starting player 2... " + app
+          @_devicePlayer = app
+          if @config.playInit or !(@config.playInit?)
+            @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume)
+          @_devicePlayer.on 'status player device', (status) =>
+            #env.logger.info "PlayerStatus =======> " + JSON.stringify(status.transportId,null,2)
+        )
+
+        @gaDevice.getStatus((err, status)=>
+          if err?
+            env.logger.error "Client status error " + err
+            return
+        )
+
+        @gaDevice.on 'error', (err) =>
+          @deviceStatus = off
+          env.logger.debug "Error in gaDevice " + err.message
+          if gaDevice? then @gaDevice.close()
+          @destroy()
+          @onlineChecker()
+
+        @gaDevice.on 'status', (status) =>
+          #
+          # get volume
+          #
+          if status.volume?.level
+            @devicePlayingVolume = status.volume.level
+            @mainVolume = @devicePlayingVolume
+            env.logger.debug "New volume level ====> " + @devicePlayingVolume
+
+          @gaDevice.getSessions((err,sessions) =>
             if err?
-              env.logger.error "Error setting volume " + err
-            env.logger.debug 'InitSounds ready'
+              env.logger.error "Error getSessions " + err.message
+              return
+            if sessions.length > 0
+              firstSession = sessions[0]
+              if firstSession.transportId?
+                #
+                # Join the chromecast info device
+                #
+                @gaDevice.join(firstSession, DefaultMediaReceiver, (err, app) =>
+                  if err?
+                    env.logger.error "Join error " + err.message
+                    return
+                  @_deviceInfo = app
+                  @_deviceInfo.on 'status' , (status) =>
+                    title = status?.media?.metadata?.title
+                    contentId = status?.media?.contentId
+                    if status.playerState is "IDLE" and @devicePlaying isnt false
+                      @devicePlaying = false
+                      if status.idleReason is "FINISHED"
+                        if @annoucement and @deviceReplaying
+                          @restartPlaying(@deviceReplayingUrl,@deviceReplayingVolume)
+                          @setAttr "status", "restart"
+                          @setAttr "info", @deviceReplayingInfo
+                        if @annoucement
+                          @setAttr "status", "idle"
+                          @setAttr "info", ""
+                          @annoucement = false
+                          @deviceReplaying = false
+                      else
+                        @setAttr "status", "idle"
+                        @setAttr "info", ""
+                    else if status.playerState is "PLAYING" and @devicePlaying isnt true
+                      @devicePlaying = true
+                      if contentId
+                        if (status.media.contentId).startsWith("http")
+                          @devicePlayingUrl = status.media.contentId
+                      @devicePlayingInfo = (if status?.media?.metadata?.artist then status.media.metadata.artist else "")
+                      if @annoucement
+                        @setAttr "status", "announcement"
+                        @setAttr "info", @devicePlayingUrl
+                      else
+                        @setAttr "status", "playing"
+                        @setAttr "info", @devicePlayingUrl
+                )
           )
-        catch err
-          env.logger.debug "PlayInit device error " + err
       )
 
+    setAttr: (attr, _status) =>
+      @attributeValues[attr] = _status
+      @emit attr, @attributeValues[attr]
+      env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
+
+    playAnnouncement: (_url, _vol) =>
+      return new Promise((resolve,reject) =>
+        unless @gaDevice?
+          reject("Device not online")
+        @deviceReplayingUrl = @devicePlayingUrl
+        @deviceReplayingInfo = @devicePlayingInfo
+        @deviceReplayingVolume = @devicePlayingVolume
+        if @devicePlaying
+          @deviceReplaying = true
+        media =
+          contentId : _url
+          contentType: 'audio/mpeg'
+          streamType: 'BUFFERED'
+        @gaDevice.launch(DefaultMediaReceiver, (err, app) =>
+          if err?
+            env.logger.error "Join error " + err.message
+            return
+          @_devicePlayer = app
+          @setVolume(_vol)
+          .then(()=>
+            app.load(media, {autoplay:true}, (err,status) =>
+              if err?
+                env.logger.error 'error: ' + err
+                reject(err)
+              @annoucement = true
+              env.logger.debug 'Playing annoucement ' + _url
+              resolve()
+            )
+          )
+        )
+      )
+
+    restartPlaying: (_url, _vol) =>
+      return new Promise((resolve,reject) =>
+        media =
+          contentId : _url
+          contentType: 'audio/mpeg'
+          streamType: 'BUFFERED'
+        @gaDevice.launch(DefaultMediaReceiver, (err, app) =>
+          if err?
+            env.logger.error "Join error " + err.message
+            return
+          @_devicePlayer = app
+          @setVolume(_vol)
+          .then(()=>
+            app.load(media, {autoplay:true}, (err,status) =>
+              if err?
+                env.logger.error 'error: ' + err
+                reject(err)
+              @annoucement = false
+              env.logger.debug '(Re)playing ' + _url
+              resolve()
+            )
+          )
+        )
+      )
+
+    setVolume: (vol) =>
+      return new Promise((resolve,reject) =>
+        if vol > 1 then vol /= 100
+        if vol < 0 then vol = 0
+        @mainVolume = vol
+        @devicePlayingVolume = vol
+        env.logger.debug "Setting volume to  " + vol
+        data = {level: vol}
+        env.logger.debug "Setvolume data: " + JSON.stringify(data,null,2)
+        @gaDevice.setVolume(data, (err) =>
+          if err?
+            reject(err)
+          resolve()
+        )
+      )
 
     destroy: ->
-      @server.close()
-      @server.removeAllListeners()
-      @gaDevice.close()
-      @gaDevice.removeAllListeners()
+      try
+        if @server?
+          @server.close()
+          @server.removeAllListeners()
+        if @gaDevice?
+          #@gaDevice.close()
+          @gaDevice.removeAllListeners()
+          @gaDevice = null
+      catch err
+        env.logger.error "Error in destroy " + err
+      clearTimeout(@onlineCheckerTimer)
+      clearTimeout(@startupTimer)
       super()
 
 
@@ -231,18 +424,6 @@ module.exports = (env) ->
               .matchString(setFilename)
           ),
           ((m) =>
-            return m.match('stop ', optional: yes)
-              .matchDevice(soundsDevices, (m, d) ->
-                # Already had a match with another device?
-                if soundsDevice? and soundsDevice.id isnt d.id
-                  context?.addError(""""#{input.trim()}" is ambiguous.""")
-                  return
-                soundType = "stop"
-                soundsDevice = d
-                match = m.getFullMatch()
-              )
-          ),
-          ((m) =>
             return m.match('vol ', optional: yes)
               .matchNumber(setMainVolume)
               .match(' on ')
@@ -306,66 +487,54 @@ module.exports = (env) ->
       if simulate
         return __("would save file \"%s\"", @text)
       else
-        switch @soundType
-          when "text"
-            env.logger.debug "Creating sound file... with text: " + @text
-            @soundsDevice.gtts.save(@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename, @text, (err) =>
-              if err?
-                return __("\"%s\" was not generated", @text)
-              env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
-              @soundsDevice.gaDevice.play(@soundsDevice.media.url, (err) =>
+        #__("\"%s\" was ok for now", @text)
+        #return
+        try
+          #if @soundsDevice.deviceStatus is off
+          #  return __("\"%s\" Rule not executed device offline", @text)
+          switch @soundType
+            when "text"
+              env.logger.debug "Creating sound file... with text: " + @text
+              @soundsDevice.gtts.save(@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename, @text, (err) =>
                 if err?
-                  env.logger.error 'error: ' + err
-                  return __("\"%s\" was not played", @text)
-                env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + @volume
-                @soundsDevice.gaDevice.setVolume((Number @volume/100), (err) =>
+                  return __("\"%s\" was not generated", @text)
+                env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
+                @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number @volume/100)
+                .then(()=>
                   if err?
-                    env.logger.error "Error setting volume " + err
-                    return __("\"%s\" was played but volume was not set", @text)
-                  return __("\"%s\" was played with volume set", @text)
+                    env.logger.error 'error: ' + err
+                    return __("\"%s\" was not played", @text)
+                  env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + @volume
+                ).catch((err)=>
+                  env.logger.error "Error in playAnnouncement: " + err
                 )
               )
-            )
-          when "file"
-            fullFilename = (@soundsDevice.media.base + "/" + @text)
-            env.logger.debug "Playing sound file... " + fullFilename
-            @soundsDevice.gaDevice.play(fullFilename, (err) =>
-              if err?
-                env.logger.error 'error: ' + err
-                return __("\"%s\" was not played", err)
-              env.logger.debug 'Playing ' + fullFilename + " with volume " + @volume
-              @soundsDevice.gaDevice.setVolume((Number @volume/100), (err) =>
+            when "file"
+              fullFilename = (@soundsDevice.media.base + "/" + @text)
+              env.logger.debug "Playing sound file... " + fullFilename
+              @soundsDevice.playAnnouncement(fullFilename, Number @volume/100, (err) =>
+                if err?
+                  env.logger.error 'error: ' + err
+                  return __("\"%s\" was not played", err)
+                env.logger.debug 'Playing ' + fullFilename + " with volume " + @volume
+              )
+            when "vol"
+              @soundsDevice.setVolume((Number @volume/100), (err) =>
                 if err?
                   env.logger.error "Error setting volume " + err
                   return __("\"%s\" was played but volume was not set", @text)
                 return __("\"%s\" was played with volume set", @text)
               )
-            )
-          when "vol"
-            @soundsDevice.gaDevice.setVolume((Number @volume/100), (err) =>
-              if err?
-                env.logger.error "Error setting volume " + err
-                return __("\"%s\" was played but volume was not set", @text)
-              return __("\"%s\" was played with volume set", @text)
-            )
-          when "stop"
-            if @soundsDevice.gaDevice.client?
-              @soundsDevice.gaDevice.stop((err) =>
-                if err?
-                  #env.logger.error "Error stopping track " + err
-                  return __("\"%s\" nothing to stop", @text)
-                return __("\"%s\" is stopped", @text)
-              )
-            return __("#{@soundsDevice.id} is stopped", @text)
-          else
-            env.logger.error 'error: unknown playtype'
-            return __("\"%s\" unknown playtype", @soundType)
+            else
+              env.logger.error 'error: unknown playtype'
+              return __("\"%s\" unknown playtype", @soundType)
 
-        return __("\"%s\" executed", @text)
-
-    destroy: () ->
-
-      super()
+          return __("\"%s\" executed", @text)
+        catch err
+          @soundsDevice.deviceStatus = off
+          env.logger.debug "Device offline, start onlineChecker " + err
+          @soundsDevice.onlineChecker()
+          return __("\"%s\" Rule not executed device offline", @text) + err
 
   soundsPlugin = new SoundsPlugin
   return soundsPlugin
