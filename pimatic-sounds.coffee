@@ -79,6 +79,7 @@ module.exports = (env) ->
       #
       # Check if Device is online
       #
+      @server = null
       @ip = @config.ip
       @onlineChecker = () =>
         env.logger.debug "Check online status device '#{@id}"
@@ -89,6 +90,8 @@ module.exports = (env) ->
               env.logger.debug "Device '#{@id}' is online"
               @deviceStatus = on
               @setAttr("status","online")
+              if @server?
+                @server.close()
               @initSounds()
             @startupTimer = setTimeout(startupTime,5000)
           else
@@ -144,6 +147,7 @@ module.exports = (env) ->
 
       @server.on 'clientError', (err, socket) =>
         socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
+
 
       #
       # The sounds states setup
@@ -490,8 +494,8 @@ module.exports = (env) ->
         #__("\"%s\" was ok for now", @text)
         #return
         try
-          #if @soundsDevice.deviceStatus is off
-          #  return __("\"%s\" Rule not executed device offline", @text)
+          if @soundsDevice.deviceStatus is off
+            return __("\"%s\" Rule not executed device offline", @text)
           switch @soundType
             when "text"
               env.logger.debug "Creating sound file... with text: " + @text
@@ -501,32 +505,33 @@ module.exports = (env) ->
                 env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
                 @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number @volume/100)
                 .then(()=>
-                  if err?
-                    env.logger.error 'error: ' + err
-                    return __("\"%s\" was not played", @text)
                   env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + @volume
+                  return __("\"%s\" was played ", @text)
                 ).catch((err)=>
-                  env.logger.error "Error in playAnnouncement: " + err
+                  env.logger.debug "Error in playAnnouncement: " + err
+                  return __("\"%s\" was not played", @text)
                 )
               )
             when "file"
               fullFilename = (@soundsDevice.media.base + "/" + @text)
               env.logger.debug "Playing sound file... " + fullFilename
-              @soundsDevice.playAnnouncement(fullFilename, Number @volume/100, (err) =>
-                if err?
-                  env.logger.error 'error: ' + err
-                  return __("\"%s\" was not played", err)
+              @soundsDevice.playAnnouncement(fullFilename, Number @volume/100)
+              .then(()=>
                 env.logger.debug 'Playing ' + fullFilename + " with volume " + @volume
+                return __("\"%s\" was played ", @text)
+              ).catch((err)=>
+                env.logger.debug "Error in playAnnouncement: " + err
+                return __("\"%s\" was not played", @text)
               )
             when "vol"
               @soundsDevice.setVolume((Number @volume/100), (err) =>
                 if err?
-                  env.logger.error "Error setting volume " + err
+                  env.logger.debug "Error setting volume " + err
                   return __("\"%s\" was played but volume was not set", @text)
                 return __("\"%s\" was played with volume set", @text)
               )
             else
-              env.logger.error 'error: unknown playtype'
+              env.logger.debug 'error: unknown playtype'
               return __("\"%s\" unknown playtype", @soundType)
 
           return __("\"%s\" executed", @text)
