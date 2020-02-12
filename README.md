@@ -47,7 +47,7 @@ In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sound
 You can set the mainvolume with the command 'play vol [0-100] on mysoundsdevice'.
 The 'vol [0-100]' after text or file is optional and will override the mainvolume. If not set, the value of the mainvolume is 20.
 
-When a TuneIn stream is playing and Sounds plays a text or file, the TuneIn Stream stops and is resumed after the Sounds play is finished.
+When a TuneIn stream is playing and Sounds plays a text or file, the TuneIn stream stops and is resumed after the Sounds play is finished.
 
 The mp3 filenames ***must be without spaces!***
 
