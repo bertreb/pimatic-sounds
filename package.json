@@ -24,7 +24,7 @@
     "tts",
     "chromecast"
   ],
-  "version": "0.0.14",
+  "version": "0.0.15",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/bertreb/pimatic-sounds.git"
@@ -34,8 +34,8 @@
     "castv2-client": "^1.2.0",
     "castv2-player": "^2.1.0",
     "chromecast-api": "^0.3.1",
-    "google-home-notify-client": "^0.3.1",
     "lodash": "^4.17.15",
+    "mdns": "^2.5.1",
     "node-gtts": "^2.0.2",
     "os": "^0.1.1",
     "path": "^0.12.7",

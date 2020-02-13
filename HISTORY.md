@@ -16,3 +16,7 @@
 * 20200213, v0.0.14
 	* added Sonos (+SYMFONISK) devices
 	* moved webserver to plugin level
+* 20200213, v0.0.15
+	* added device discovery
+	* volume stays on same level after Sounds playing
+	* possibility to use variables in text string

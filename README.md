@@ -1,5 +1,5 @@
 # pimatic-sounds
-Pimatic plugin for playing mp3 files and tts sentences on Chromecast and Sonos devices. A typical chromecast device devices is Google Home or a Google chromecast dongle. The Ikea SYMFONISK is a Sonos device. 
+Pimatic plugin for playing mp3 files and tts sentences on Chromecast and Sonos devices. A typical chromecast device devices is Google Home or a Google chromecast dongle. The Ikea SYMFONISK is a Sonos device.
 
 Install the plugin via the plugin page of Pimatic or add the following in config.json
 ```
@@ -59,12 +59,18 @@ The 3 type of command lines are:
 
 In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sounds is created. You can put mp3 files in that directory. You can create subdirectories in sounds and can use them in the rule.
 
+In the text string you can use variables to create dynamic voice text.
+
 You can set the mainvolume with the command 'play vol [0-100] on mysoundsdevice'.
 The 'vol [0-100]' after text or file is optional and will override the mainvolume. If not set, the value of the mainvolume is 20.
 
 When a TuneIn stream is playing and Sounds plays a text or file, the TuneIn stream stops and is resumed after the Sounds play is finished.
 
 The mp3 filenames ***must be without spaces!***
+
+## Discovery
+In the devices section of the Gui you can use the device discovery to discover and add Chromecast or Sonos devices.
+Devices that are already in the config are not shown.
 
 ----
 The plugin is **only Node v8 or v10** compatible and in development.

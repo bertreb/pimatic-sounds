@@ -11,6 +11,8 @@ module.exports = (env) ->
   Device = require('castv2-client').Client
   DefaultMediaReceiver = require('castv2-client').DefaultMediaReceiver
   Sonos = require('sonos').Sonos
+  SonosDiscovery = require('sonos')
+  mdns = require('mdns')
 
   class SoundsPlugin extends env.plugins.Plugin
     init: (app, @framework, @config) =>
@@ -71,6 +73,49 @@ module.exports = (env) ->
       })
       @soundsClasses = ["ChromecastDevice","SonosDevice"]
       @framework.ruleManager.addActionProvider(new SoundsActionProvider(@framework, @soundsClasses, @soundsDir))
+
+      @framework.deviceManager.on('discover', (eventData) =>
+        @framework.deviceManager.discoverMessage 'pimatic-sounds', 'Searching for new devices'
+        SonosDiscovery.DeviceDiscovery((device) =>
+          #env.logger.info "Sonos Device found with IP " +  device.host
+          if not inConfigIp(device.host,"SonosDevice")
+            newId = "sonos_" + device.host.split('.').join("")
+            config =
+              id: newId
+              name: newId
+              class: "SonosDevice"
+              ip: device.host
+            @framework.deviceManager.discoveredDevice( "pimatic-sounds", config.name, config)
+        )
+        scanner = mdns.createBrowser(mdns.tcp('googlecast'), 
+          {resolverSequence: mdns.Browser.defaultResolverSequence})
+        scanner.on('serviceUp', (service) =>
+          name = service.txtRecord.fn
+          ip = service.addresses[0]
+          if not inConfigIp(ip , "ChromecastDevice")
+            if name?
+              newId = name.replace(" ","_")
+            else
+              newId = "cast_" + ip.split('.').join("")
+            config =
+              id: newId
+              name: newId
+              class: "ChromecastDevice"
+              ip: ip
+            @framework.deviceManager.discoveredDevice( "pimatic-sounds", config.name, config)
+        )
+        scanner.start()
+        setTimeout (=> scanner.stop()), 15000
+      )
+
+      inConfigIp = (deviceIP, cn) =>
+        for device in @framework.deviceManager.devicesConfig
+          if device.ip?
+            if ((device.ip).indexOf(String deviceIP) >= 0) and device.class == cn
+              env.logger.info "device " + deviceIP + " (" + cn + ") already in config"
+              return true
+        return false
+
 
   class ChromecastDevice extends env.devices.Device
 
@@ -244,6 +289,13 @@ module.exports = (env) ->
                           @setAttr "info", ""
                           @annoucement = false
                           @deviceReplaying = false
+                          #set volume back to mainVolume
+                          @setVolume(@deviceReplayingVolume)
+                          .then(()=>
+                            env.logger.debug "Volume set back to presound value "
+                          ).catch((err)=>
+                            env.logger.debug "Niet gelukt volume terug te zetten op oude waarde"
+                          )
                       else
                         @setAttr "status", "idle"
                         @setAttr "info", ""
@@ -520,7 +572,7 @@ module.exports = (env) ->
     destroy: ->
       try
         if @sonosDevice?
-          @sonosDevice.stopListening()
+          @sonosDevice.stop()
        catch err
         env.logger.error "Error in Sonos destroy " + err
       clearTimeout(@onlineCheckerTimer)
@@ -556,6 +608,11 @@ module.exports = (env) ->
           return
         soundType = "text"
         text = txt
+        return
+
+      setLogString = (m, tokens) => 
+        soundType = "text"
+        text = tokens
         return
 
       setFilename = (m, filename) =>
@@ -601,7 +658,7 @@ module.exports = (env) ->
         .or([
           ((m) =>
             return m.match('text ', optional: yes)
-              .matchString(setText)
+              .matchStringWithVars(setLogString)
           ),
           ((m) =>
             return m.match('file ', optional: yes)
@@ -665,31 +722,32 @@ module.exports = (env) ->
 
   class SoundsActionHandler extends env.actions.ActionHandler
 
-    constructor: (@framework, @actionProvider, @text, @soundType, @soundsDevice, @volume) ->
+    constructor: (@framework, @actionProvider, @textIn, @soundType, @soundsDevice, @volume) ->
 
     executeAction: (simulate) =>
       if simulate
         return __("would save file \"%s\"", @text)
       else
-        #__("\"%s\" was ok for now", @text)
-        #return
+        if @soundsDevice.deviceStatus is off
+          return __("\"%s\" Rule not executed device offline", @text)
         try
-          if @soundsDevice.deviceStatus is off
-            return __("\"%s\" Rule not executed device offline", @text)
           switch @soundType
             when "text"
-              env.logger.debug "Creating sound file... with text: " + @text
-              @soundsDevice.gtts.save(@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename, @text, (err) =>
-                if err?
-                  return __("\"%s\" was not generated", @text)
-                env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
-                @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number @volume)
-                .then(()=>
-                  env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + @volume
-                  return __("\"%s\" was played ", @text)
-                ).catch((err)=>
-                  env.logger.debug "Error in playAnnouncement: " + err
-                  return __("\"%s\" was not played", @text)
+              @framework.variableManager.evaluateStringExpression(@textIn).then( (strToLog) =>
+                @text = strToLog
+                env.logger.debug "Creating sound file... with text: " + @text
+                @soundsDevice.gtts.save(@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename, @text, (err) =>
+                  if err?
+                    return __("\"%s\" was not generated", @text)
+                  env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
+                  @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number @volume)
+                  .then(()=>
+                    env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + @volume
+                    return __("\"%s\" was played ", @text)
+                  ).catch((err)=>
+                    env.logger.debug "Error in playAnnouncement: " + err
+                    return __("\"%s\" was not played", @text)
+                  )
                 )
               )
             when "file"
