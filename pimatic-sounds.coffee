@@ -12,7 +12,7 @@ module.exports = (env) ->
   DefaultMediaReceiver = require('castv2-client').DefaultMediaReceiver
   Sonos = require('sonos').Sonos
   SonosDiscovery = require('sonos')
-  mdns = require('mdns')
+  #mdns = require('mdns')
 
   class SoundsPlugin extends env.plugins.Plugin
     init: (app, @framework, @config) =>
@@ -75,7 +75,8 @@ module.exports = (env) ->
       @framework.ruleManager.addActionProvider(new SoundsActionProvider(@framework, @soundsClasses, @soundsDir))
 
       @framework.deviceManager.on('discover', (eventData) =>
-        @framework.deviceManager.discoverMessage 'pimatic-sounds', 'Searching for new devices'
+        @framework.deviceManager.discoverMessage 'pimatic-sounds', 'Not yet implemented' # Searching for new devices'
+        ###
         SonosDiscovery.DeviceDiscovery((device) =>
           #env.logger.info "Sonos Device found with IP " +  device.host
           if not inConfigIp(device.host,"SonosDevice")
@@ -87,7 +88,7 @@ module.exports = (env) ->
               ip: device.host
             @framework.deviceManager.discoveredDevice( "pimatic-sounds", config.name, config)
         )
-        scanner = mdns.createBrowser(mdns.tcp('googlecast'), 
+        scanner = mdns.createBrowser(mdns.tcp('googlecast'),
           {resolverSequence: mdns.Browser.defaultResolverSequence})
         scanner.on('serviceUp', (service) =>
           name = service.txtRecord.fn
@@ -106,6 +107,7 @@ module.exports = (env) ->
         )
         scanner.start()
         setTimeout (=> scanner.stop()), 15000
+        ###
       )
 
       inConfigIp = (deviceIP, cn) =>
@@ -509,7 +511,7 @@ module.exports = (env) ->
       if @config.playInit or !(@config.playInit?)
         @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume)
 
-      @sonosDevice.on 'PlayState', (state) => 
+      @sonosDevice.on 'PlayState', (state) =>
         env.logger.debug 'The PlayState changed to ' + state
         if state is "PLAYING"
           @devicePlaying = true
@@ -522,11 +524,11 @@ module.exports = (env) ->
           @setAttr("info",track.title)
         )
 
-      @sonosDevice.on 'Volume', (volume) => 
+      @sonosDevice.on 'Volume', (volume) =>
         env.logger.debug 'Volume changed to ' + volume
         @mainVolume = volume
 
-      @sonosDevice.on 'Mute', (isMuted) => 
+      @sonosDevice.on 'Mute', (isMuted) =>
         env.logger.debug 'Mute changed to ' + isMuted
 
 
@@ -610,7 +612,7 @@ module.exports = (env) ->
         text = txt
         return
 
-      setLogString = (m, tokens) => 
+      setLogString = (m, tokens) =>
         soundType = "text"
         text = tokens
         return

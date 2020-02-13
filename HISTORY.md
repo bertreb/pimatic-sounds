@@ -20,3 +20,5 @@
 	* added device discovery
 	* volume stays on same level after Sounds playing
 	* possibility to use variables in text string
+* 20200213, v0.0.16
+	* discovery removed due to mdns install issues

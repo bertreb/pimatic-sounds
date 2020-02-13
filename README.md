@@ -68,10 +68,6 @@ When a TuneIn stream is playing and Sounds plays a text or file, the TuneIn stre
 
 The mp3 filenames ***must be without spaces!***
 
-## Discovery
-In the devices section of the Gui you can use the device discovery to discover and add Chromecast or Sonos devices.
-Devices that are already in the config are not shown.
-
 ----
 The plugin is **only Node v8 or v10** compatible and in development.
 
