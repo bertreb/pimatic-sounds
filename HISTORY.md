@@ -13,3 +13,6 @@
 	* rename 1e device to ChromecastDevice
 * 20200212, v0.0.13
 	* replay of TuneIn stream after Text or File play
+* 20200213, v0.0.14
+	* added Sonos (+SYMFONISK) devices
+	* moved webserver to plugin level

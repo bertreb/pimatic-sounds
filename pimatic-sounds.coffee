@@ -10,6 +10,7 @@ module.exports = (env) ->
   ping = require ("ping")
   Device = require('castv2-client').Client
   DefaultMediaReceiver = require('castv2-client').DefaultMediaReceiver
+  Sonos = require('sonos').Sonos
 
   class SoundsPlugin extends env.plugins.Plugin
     init: (app, @framework, @config) =>
@@ -30,6 +31,25 @@ module.exports = (env) ->
               env.logger.error "InitSounds not copied " + err
             env.logger.debug "InitSounds copied to sounds directory"
 
+      @serverPort = @config.port ? 8088
+      @server = http.createServer((req, res) =>
+        fs.readFile @soundsDir + "/" + req.url, (err, data) ->
+          if err
+            res.writeHead 404
+            res.end JSON.stringify(err)
+            return
+          res.writeHead 200, {'Content-Type': 'audio/mpeg'}
+          res.end data
+          return
+        return
+      ).listen(@serverPort)
+
+      process.on 'SIGINT', () =>
+        if @server?
+          @server.close()
+          @server.removeAllListeners()
+          env.logger.debug "Stopping plugin, closing server"
+
       oldClassName = "SoundsDevice"
       newClassName = "ChromecastDevice"
       for device,i in @framework.config.devices
@@ -45,7 +65,11 @@ module.exports = (env) ->
         configDef: deviceConfigDef.ChromecastDevice,
         createCallback: (config, lastState) => new ChromecastDevice(config, lastState, @framework, @)
       })
-      @soundsClasses = ["ChromecastDevice"]
+      @framework.deviceManager.registerDeviceClass('SonosDevice', {
+        configDef: deviceConfigDef.SonosDevice,
+        createCallback: (config, lastState) => new SonosDevice(config, lastState, @framework, @)
+      })
+      @soundsClasses = ["ChromecastDevice","SonosDevice"]
       @framework.ruleManager.addActionProvider(new SoundsActionProvider(@framework, @soundsClasses, @soundsDir))
 
   class ChromecastDevice extends env.devices.Device
@@ -56,6 +80,7 @@ module.exports = (env) ->
 
       if @_destroyed then return
       @deviceStatus = off
+      @textFilename = @id + "_text.mp3"
 
       #
       # Configure attributes
@@ -79,7 +104,6 @@ module.exports = (env) ->
       #
       # Check if Device is online
       #
-      @server = null
       @ip = @config.ip
       @onlineChecker = () =>
         env.logger.debug "Check online status device '#{@id}"
@@ -133,21 +157,6 @@ module.exports = (env) ->
         url: baseUrl + "/" + @textFilename
         base: baseUrl
         filename: @textFilename
-      @server = http.createServer((req, res) =>
-        fs.readFile @plugin.soundsDir + "/" + req.url, (err, data) ->
-          if err
-            res.writeHead 404
-            res.end JSON.stringify(err)
-            return
-          res.writeHead 200, {'Content-Type': 'audio/mpeg'}
-          res.end data
-          return
-        return
-      ).listen(@serverPort)
-
-      @server.on 'clientError', (err, socket) =>
-        socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
-
 
       #
       # The sounds states setup
@@ -334,15 +343,186 @@ module.exports = (env) ->
 
     destroy: ->
       try
-        if @server?
-          @server.close()
-          @server.removeAllListeners()
         if @gaDevice?
           #@gaDevice.close()
           @gaDevice.removeAllListeners()
           @gaDevice = null
       catch err
         env.logger.error "Error in destroy " + err
+      clearTimeout(@onlineCheckerTimer)
+      clearTimeout(@startupTimer)
+      super()
+
+  class SonosDevice extends env.devices.Device
+
+    constructor: (@config, lastState, @framework, @plugin) ->
+      @id = @config.id
+      @name = @config.name
+
+      if @_destroyed then return
+      @deviceStatus = off
+      @textFilename = @id + "_text.mp3"
+
+      #
+      # Configure attributes
+      #
+      @attributes = {}
+      @attributeValues = {}
+      _attrs = ["status","info"]
+      for _attr in _attrs
+        @attributes[_attr] =
+          description: "The " + _attr
+          type: "string"
+          label: _attr
+          acronym: _attr
+        @attributeValues[_attr] = ""
+        @_createGetter(_attr, =>
+          return Promise.resolve @attributeValues[_attr]
+        )
+        @setAttr _attr, @attributeValues[_attr]
+      @setAttr("status","starting")
+
+      #
+      # Check if Device is online
+      #
+      @ip = @config.ip
+      @onlineChecker = () =>
+        env.logger.debug "Check online status device '#{@id}"
+        ping.promise.probe(@ip,{timeout: 2})
+        .then((host)=>
+          if host.alive
+            startupTime = () =>
+              env.logger.debug "Device '#{@id}' is online"
+              @deviceStatus = on
+              @setAttr("status","online")
+              if @server?
+                @server.close()
+              @initSounds()
+            @startupTimer = setTimeout(startupTime,5000)
+          else
+            @deviceStatus = off
+            @setAttr("status","offline")
+            env.logger.error "Device '#{@id}' offline"
+            @onlineCheckerTimer = setTimeout(@onlineChecker,30000)
+        )
+      @onlineChecker()
+
+
+      super()
+
+    initSounds: () =>
+
+      #
+      # Configure tts
+      #
+      @language = @plugin.config.language ? "en"
+      @gtts = require('node-gtts')(@language)
+
+      for i, addresses of Os.networkInterfaces()
+        for add in addresses
+          if add.address.startsWith('192.168.')
+            @serverIp = add.address
+            env.logger.debug "Found IP adddress: " + @serverIp
+      unless @serverIp?
+        throw new Error "No IP address found!"
+
+      #
+      # The mediaserver and text settings and start of media server
+      #
+      @textFilename = @id + "_text.mp3"
+      @serverPort = @plugin.config.port ? 8088
+      @mainVolume = 40
+      @initVolume = 40
+      @soundsDir = @plugin.soundsDir
+      baseUrl = "http://" + @serverIp + ":" + @serverPort
+      @media =
+        url: baseUrl + "/" + @textFilename
+        base: baseUrl
+        filename: @textFilename
+
+      #
+      # The sounds states setup
+      #
+      @announcement = false
+      @devicePlaying = false
+      @deviceReplaying = false
+      @devicePlayingUrl = ""
+      @deviceReplayingUrl = ""
+
+      #
+      # The sonos setup
+      #
+      @sonosDevice = new Sonos(@ip)
+
+      if @config.playInit or !(@config.playInit?)
+        @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume)
+
+      @sonosDevice.on 'PlayState', (state) => 
+        env.logger.debug 'The PlayState changed to ' + state
+        if state is "PLAYING"
+          @devicePlaying = true
+        else
+          @devicePlaying = false
+        @setAttr("status",state)
+        @sonosDevice.currentTrack()
+        .then((track) =>
+          env.logger.debug 'Current track ' + JSON.stringify(track,null,2)
+          @setAttr("info",track.title)
+        )
+
+      @sonosDevice.on 'Volume', (volume) => 
+        env.logger.debug 'Volume changed to ' + volume
+        @mainVolume = volume
+
+      @sonosDevice.on 'Mute', (isMuted) => 
+        env.logger.debug 'Mute changed to ' + isMuted
+
+
+    setAttr: (attr, _status) =>
+      @attributeValues[attr] = _status
+      @emit attr, @attributeValues[attr]
+      env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
+
+    playAnnouncement: (_url, _vol) =>
+      return new Promise((resolve,reject) =>
+        unless @sonosDevice?
+          reject("Device not online")
+        media =
+          uri : _url
+          onlyWhenPlaying: false
+          volume: _vol
+        @sonosDevice.playNotification(media)
+        .then((result) =>
+          env.logger.debug 'Playing annoucement ' + result
+          resolve()
+        ).catch((err)=>
+          env.logger.error 'error: ' + err
+          reject(err)
+        )
+      )
+
+    setVolume: (vol) =>
+      return new Promise((resolve,reject) =>
+        if vol > 1 then vol /= 100
+        if vol < 0 then vol = 0
+        @mainVolume = vol
+        @devicePlayingVolume = vol
+        env.logger.debug "Setting volume to  " + vol
+        data = {level: vol}
+        env.logger.debug "Setvolume data: " + JSON.stringify(data,null,2)
+        @sonosDevice.setVolume(data, (err) =>
+          if err?
+            reject(err)
+          resolve()
+        )
+      )
+
+    destroy: ->
+      try
+        if @sonosDevice?
+          @sonosDevice.stopListening()
+       catch err
+        env.logger.error "Error in Sonos destroy " + err
       clearTimeout(@onlineCheckerTimer)
       clearTimeout(@startupTimer)
       super()
@@ -503,7 +683,7 @@ module.exports = (env) ->
                 if err?
                   return __("\"%s\" was not generated", @text)
                 env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
-                @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number @volume/100)
+                @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number @volume)
                 .then(()=>
                   env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + @volume
                   return __("\"%s\" was played ", @text)
@@ -515,7 +695,7 @@ module.exports = (env) ->
             when "file"
               fullFilename = (@soundsDevice.media.base + "/" + @text)
               env.logger.debug "Playing sound file... " + fullFilename
-              @soundsDevice.playAnnouncement(fullFilename, Number @volume/100)
+              @soundsDevice.playAnnouncement(fullFilename, Number @volume)
               .then(()=>
                 env.logger.debug 'Playing ' + fullFilename + " with volume " + @volume
                 return __("\"%s\" was played ", @text)
@@ -524,7 +704,7 @@ module.exports = (env) ->
                 return __("\"%s\" was not played", @text)
               )
             when "vol"
-              @soundsDevice.setVolume((Number @volume/100), (err) =>
+              @soundsDevice.setVolume((Number @volume), (err) =>
                 if err?
                   env.logger.debug "Error setting volume " + err
                   return __("\"%s\" was played but volume was not set", @text)

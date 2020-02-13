@@ -1,5 +1,5 @@
 # pimatic-sounds
-Pimatic plugin for playing mp3 files and tts sentences on Chromecast devices. A typical chromecast device devices is Google Home or a Google chromecast dongle.
+Pimatic plugin for playing mp3 files and tts sentences on Chromecast and Sonos devices. A typical chromecast device devices is Google Home or a Google chromecast dongle. The Ikea SYMFONISK is a Sonos device. 
 
 Install the plugin via the plugin page of Pimatic or add the following in config.json
 ```
@@ -19,7 +19,8 @@ After installation and restart activate the plugin and add the following to the 
 The IP address of the computer the plugin is running on, is automatically detected and used for the media server. It must be in the range 192.168.xxx.xxx.
 The supported (but not tested) languages can be found in  [languages](https://github.com/bertreb/pimatic-sounds/blob/master/languages).
 
-Create the ChromecastDevice with the following config.
+### Chromecast Device
+Create a Chromecast device with the following config.
 
 ```
 {
@@ -31,8 +32,22 @@ Create the ChromecastDevice with the following config.
   "xAttributeOptions": [],
 }
 ```
+### Sonos Device
+Create a Sonos device with the following config.
 
-The function is controlled via rules
+```
+{
+  "id": "testcast",         // id for usage within Pimatic
+  "name": "testcast",       // name for usage within Pimatic
+  "class": "SonosDevice"
+  "ip": "192.168.xxx.xxx",  // IP of your Chromecast device
+  "playInit": true          // plays initSound.mp3 after (re)start of device
+  "xAttributeOptions": [],
+}
+```
+## Controlling the devices
+
+The function of a device is controlled via rules
 The ACTION rule syntax is:
 
 **play** [text|file|vol] ["test text for tts"|"filename"] [**vol** [0-100]] **on** [ChromecastDevice]
