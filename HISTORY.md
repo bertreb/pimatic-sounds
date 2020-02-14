@@ -22,3 +22,5 @@
 	* possibility to use variables in text string
 * 20200213, v0.0.16
 	* discovery removed due to mdns install issues
+* 20200214, v0.0.17
+	* improved error handling

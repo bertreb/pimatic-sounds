@@ -161,10 +161,8 @@ module.exports = (env) ->
               env.logger.debug "Device '#{@id}' is online"
               @deviceStatus = on
               @setAttr("status","online")
-              if @server?
-                @server.close()
               @initSounds()
-            @startupTimer = setTimeout(startupTime,5000)
+            @startupTimer = setTimeout(startupTime,15000)
           else
             @deviceStatus = off
             @setAttr("status","offline")
@@ -218,6 +216,13 @@ module.exports = (env) ->
       # The chromecast setup
       #
       @gaDevice = new Device()
+      @gaDevice.on 'error', (err) =>
+        @deviceStatus = off
+        env.logger.debug "Error in gaDevice " + err.message
+        if gaDevice? then @gaDevice.close()
+        @destroy()
+        @onlineChecker()
+
       @gaDevice.connect(@ip, (err) =>
         if err?
           env.logger.error "Connect error " + err.message
@@ -245,12 +250,6 @@ module.exports = (env) ->
             return
         )
 
-        @gaDevice.on 'error', (err) =>
-          @deviceStatus = off
-          env.logger.debug "Error in gaDevice " + err.message
-          if gaDevice? then @gaDevice.close()
-          @destroy()
-          @onlineChecker()
 
         @gaDevice.on 'status', (status) =>
           #
@@ -284,9 +283,14 @@ module.exports = (env) ->
                       if status.idleReason is "FINISHED"
                         if @annoucement and @deviceReplaying
                           @restartPlaying(@deviceReplayingUrl,@deviceReplayingVolume)
-                          @setAttr "status", "restart"
-                          @setAttr "info", @deviceReplayingInfo
-                        if @annoucement
+                          .then(()=>
+                            @setAttr "status", "restart"
+                            @setAttr "info", @deviceReplayingInfo
+                          ).catch((err) =>
+                            env.logger.error "Error in restart " + err.message
+                            @deviceReplaying = false
+                          )
+                        if @annoucement and not @deviceReplaying
                           @setAttr "status", "idle"
                           @setAttr "info", ""
                           @annoucement = false
@@ -294,9 +298,10 @@ module.exports = (env) ->
                           #set volume back to mainVolume
                           @setVolume(@deviceReplayingVolume)
                           .then(()=>
+                            #@_deviceInfo.stop()
                             env.logger.debug "Volume set back to presound value "
                           ).catch((err)=>
-                            env.logger.debug "Niet gelukt volume terug te zetten op oude waarde"
+                            env.logger.debug "Niet gelukt volume terug te zetten op oude waarde" + err
                           )
                       else
                         @setAttr "status", "idle"
@@ -316,6 +321,7 @@ module.exports = (env) ->
                 )
           )
       )
+
 
     setAttr: (attr, _status) =>
       @attributeValues[attr] = _status
@@ -356,27 +362,32 @@ module.exports = (env) ->
 
     restartPlaying: (_url, _vol) =>
       return new Promise((resolve,reject) =>
-        media =
-          contentId : _url
-          contentType: 'audio/mpeg'
-          streamType: 'BUFFERED'
-        @gaDevice.launch(DefaultMediaReceiver, (err, app) =>
-          if err?
-            env.logger.error "Join error " + err.message
-            return
-          @_devicePlayer = app
-          @setVolume(_vol)
-          .then(()=>
-            app.load(media, {autoplay:true}, (err,status) =>
-              if err?
-                env.logger.error 'error: ' + err
-                reject(err)
-              @annoucement = false
-              env.logger.debug '(Re)playing ' + _url
-              resolve()
+        try
+          media =
+            contentId : _url
+            contentType: 'audio/mpeg'
+            streamType: 'BUFFERED'
+          @gaDevice.launch(DefaultMediaReceiver, (err, app) =>
+            if err?
+              env.logger.error "Join error " + err.message
+              return
+            @_devicePlayer = app
+            @setVolume(_vol)
+            .then(()=>
+              app.load(media, {autoplay:true}, (err,status) =>
+                if err?
+                  env.logger.error 'error: ' + err.message
+                  reject(err)
+                @annoucement = false
+                env.logger.debug '(Re)playing ' + _url
+                resolve()
+              )
+            ).catch((err)=>
+              env.logger.error "Error setting volume " + err.message
             )
           )
-        )
+        catch err
+          env.logger.error "Error restarting playing " + err.message
       )
 
     setVolume: (vol) =>
@@ -398,7 +409,7 @@ module.exports = (env) ->
     destroy: ->
       try
         if @gaDevice?
-          #@gaDevice.close()
+          @gaDevice.close()
           @gaDevice.removeAllListeners()
           @gaDevice = null
       catch err
@@ -449,8 +460,6 @@ module.exports = (env) ->
               env.logger.debug "Device '#{@id}' is online"
               @deviceStatus = on
               @setAttr("status","online")
-              if @server?
-                @server.close()
               @initSounds()
             @startupTimer = setTimeout(startupTime,5000)
           else
