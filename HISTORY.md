@@ -24,3 +24,6 @@
 	* discovery removed due to mdns install issues
 * 20200214, v0.0.17
 	* improved error handling
+* 20200214, v0.0.18
+	* wrong status info when playing Sounds
+	* bugfix filename

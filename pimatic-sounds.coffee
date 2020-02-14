@@ -12,7 +12,6 @@ module.exports = (env) ->
   DefaultMediaReceiver = require('castv2-client').DefaultMediaReceiver
   Sonos = require('sonos').Sonos
   SonosDiscovery = require('sonos')
-  #mdns = require('mdns')
 
   class SoundsPlugin extends env.plugins.Plugin
     init: (app, @framework, @config) =>
@@ -250,7 +249,6 @@ module.exports = (env) ->
             return
         )
 
-
         @gaDevice.on 'status', (status) =>
           #
           # get volume
@@ -314,7 +312,7 @@ module.exports = (env) ->
                       @devicePlayingInfo = (if status?.media?.metadata?.artist then status.media.metadata.artist else "")
                       if @annoucement
                         @setAttr "status", "announcement"
-                        @setAttr "info", @devicePlayingUrl
+                        @setAttr "info", ""
                       else
                         @setAttr "status", "playing"
                         @setAttr "info", @devicePlayingUrl
@@ -737,10 +735,10 @@ module.exports = (env) ->
 
     executeAction: (simulate) =>
       if simulate
-        return __("would save file \"%s\"", @text)
+        return __("would save file \"%s\"", @textIn)
       else
         if @soundsDevice.deviceStatus is off
-          return __("\"%s\" Rule not executed device offline", @text)
+          return __("\"%s\" Rule not executed device offline", @textIn)
         try
           switch @soundType
             when "text"
@@ -762,15 +760,15 @@ module.exports = (env) ->
                 )
               )
             when "file"
-              fullFilename = (@soundsDevice.media.base + "/" + @text)
+              fullFilename = (@soundsDevice.media.base + "/" + @textIn)
               env.logger.debug "Playing sound file... " + fullFilename
               @soundsDevice.playAnnouncement(fullFilename, Number @volume)
               .then(()=>
                 env.logger.debug 'Playing ' + fullFilename + " with volume " + @volume
-                return __("\"%s\" was played ", @text)
+                return __("\"%s\" was played ", @textIn)
               ).catch((err)=>
                 env.logger.debug "Error in playAnnouncement: " + err
-                return __("\"%s\" was not played", @text)
+                return __("\"%s\" was not played", @textIn)
               )
             when "vol"
               @soundsDevice.setVolume((Number @volume), (err) =>
