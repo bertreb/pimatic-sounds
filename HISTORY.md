@@ -27,3 +27,9 @@
 * 20200214, v0.0.18
 	* wrong status info when playing Sounds
 	* bugfix filename
+* 20200215, v0.0.19
+	* error message on spaces in rule filename
+	* fix setting port number
+	* stop casting after text or file announcement
+	* improved media file typing
+	* adding variable in filename string

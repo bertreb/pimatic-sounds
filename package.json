@@ -15,7 +15,8 @@
     "LICENSE",
     "HISTORY.md",
     "languages",
-    "initSound.mp3"
+    "initSound.mp3",
+    "content-types.js"
   ],
   "homepage": "https://github.com/bertreb/pimatic-sounds.git",
   "keywords": [
@@ -24,7 +25,7 @@
     "tts",
     "chromecast"
   ],
-  "version": "0.0.18",
+  "version": "0.0.19",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/bertreb/pimatic-sounds.git"
@@ -32,8 +33,6 @@
   "configSchema": "pimatic-sounds-config-schema.coffee",
   "dependencies": {
     "castv2-client": "^1.2.0",
-    "castv2-player": "^2.1.0",
-    "chromecast-api": "^0.3.1",
     "lodash": "^4.17.15",
     "node-gtts": "^2.0.2",
     "os": "^0.1.1",
