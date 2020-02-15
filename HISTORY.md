@@ -33,3 +33,5 @@
 	* stop casting after text or file announcement
 	* improved media file typing
 	* adding variable in filename string
+* 20200215, v0.0.20
+	* fix replay live stream

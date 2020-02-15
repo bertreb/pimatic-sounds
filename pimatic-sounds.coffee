@@ -291,7 +291,7 @@ module.exports = (env) ->
       return new Promise((resolve,reject) =>
         unless @gaDevice?
           reject("Device not online")
-        if @devicePlaying and not @annoucement
+        if @devicePlaying
           @deviceReplaying = true
           @annoucement = true
           @deviceReplayingUrl = @devicePlayingUrl
