@@ -1,6 +1,6 @@
 {
   "name": "pimatic-sounds",
-  "description": "Playing mp3 files and tts sentences on Chromecast devices (node v8+ only)",
+  "description": "Playing mp3 files and tts sentences on Chromecast and Sonos devices (node v8+ only)",
   "author": {
     "name": "Bert Gierveld",
     "email": "gitbertreb@gmail.com",
