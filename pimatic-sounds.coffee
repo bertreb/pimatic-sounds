@@ -167,7 +167,7 @@ module.exports = (env) ->
           else
             @deviceStatus = off
             @setAttr("status","offline")
-            env.logger.error "Device '#{@id}' offline"
+            env.logger.debug "Device '#{@id}' offline"
             @onlineCheckerTimer = setTimeout(@onlineChecker,30000)
         )
       @onlineChecker()
@@ -222,6 +222,12 @@ module.exports = (env) ->
         @deviceStatus = off
         env.logger.debug "Error in gaDevice " + err.message
         @destroy()
+        @onlineChecker()
+
+      # subscribe to inner client
+      @gaDevice.client.on 'close', () =>
+        @deviceStatus = off
+        env.logger.debug "Client Client closing" 
         @onlineChecker()
 
       @gaDevice.connect(@ip, (err) =>
@@ -312,38 +318,42 @@ module.exports = (env) ->
           streamType: 'BUFFERED'
           metadata: defaultMetadata
 
-        @gaDevice.launch(DefaultMediaReceiver, (err, app) =>
-          if err?
-            env.logger.error "Join error " + err.message
-            reject()
-          app.on 'status', (status) =>
-            if status.playerState is "IDLE" and status.idleReason is "FINISHED"
-              @stopCasting()
-              .then(() =>
-                env.logger.debug "Casting stopped"
-                if @deviceReplaying
-                  @restartPlaying(@deviceReplayingUrl, @deviceReplayingVolume)
-                  .then(()=>
-                    env.logger.debug "Media restarted: " + @deviceReplayingUrl
-                    resolve()
-                  ).catch((err)=>
-                    env.logger.error "Error " + err
-                  )
-              ).catch((err) =>
-                env.logger.error "error in stopping casting: " + err
+        try
+          @gaDevice.launch(DefaultMediaReceiver, (err, app) =>
+            if err?
+              env.logger.error "Join error " + err.message
+              reject()
+            app.on 'status', (status) =>
+              if status.playerState is "IDLE" and status.idleReason is "FINISHED"
+                @stopCasting()
+                .then(() =>
+                  env.logger.debug "Casting stopped"
+                  if @deviceReplaying
+                    @restartPlaying(@deviceReplayingUrl, @deviceReplayingVolume)
+                    .then(()=>
+                      env.logger.debug "Media restarted: " + @deviceReplayingUrl
+                      resolve()
+                    ).catch((err)=>
+                      env.logger.error "Error " + err
+                    )
+                ).catch((err) =>
+                  env.logger.error "error in stopping casting: " + err
+                )
+            @_devicePlayer = app
+            @setVolume(_vol)
+            .then(()=>
+              app.load(media, {autoplay:true}, (err,status) =>
+                if err?
+                  env.logger.error 'error: ' + err
+                  reject(err)
+                @annoucement = true
+                env.logger.debug 'Playing annoucement ' + _url
               )
-          @_devicePlayer = app
-          @setVolume(_vol)
-          .then(()=>
-            app.load(media, {autoplay:true}, (err,status) =>
-              if err?
-                env.logger.error 'error: ' + err
-                reject(err)
-              @annoucement = true
-              env.logger.debug 'Playing annoucement ' + _url
             )
           )
-        )
+        catch err
+          env.logger.debug "Error lauching client not ready, " + err.message
+
       )
 
     stopCasting: () =>
@@ -383,7 +393,7 @@ module.exports = (env) ->
           return @client.close()
         )
         .catch((err) =>
-          env.logger.error "error in stop casting " + err
+          env.logger.error "Error in stop casting " + err
         )
       catch err
         env.logger.error "Error in stopCasting " + err
