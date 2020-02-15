@@ -70,7 +70,6 @@ The 'vol [0-100]' after text or file is optional and will override the mainvolum
 When a TuneIn stream is playing and Sounds plays a text or file, the TuneIn stream stops and is resumed after the Sounds play is finished.
 
 ### Credits
----
 This plugin is build from several existing pieces of software. Sometimes the ideas and sometimes the real pieces of code. To mention are:
 - castv2-client from thibauts
 - node-red-contrib-castv2 from i8beef
