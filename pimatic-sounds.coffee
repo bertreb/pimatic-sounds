@@ -161,7 +161,7 @@ module.exports = (env) ->
             startupTime = () =>
               env.logger.debug "Device '#{@id}' is online"
               @deviceStatus = on
-              @setAttr("status","online")
+              @setAttr("status","idle")
               @initSounds()
             @startupTimer = setTimeout(startupTime,15000)
           else
@@ -488,7 +488,7 @@ module.exports = (env) ->
             startupTime = () =>
               env.logger.debug "Device '#{@id}' is online"
               @deviceStatus = on
-              @setAttr("status","online")
+              @setAttr("status","idle")
               @initSounds()
             @startupTimer = setTimeout(startupTime,5000)
           else
@@ -551,16 +551,23 @@ module.exports = (env) ->
 
       @sonosDevice.on 'PlayState', (state) =>
         env.logger.debug 'The PlayState changed to ' + state
-        if state is "PLAYING"
-          @devicePlaying = true
-        else
-          @devicePlaying = false
-        @setAttr("status",state)
-        @sonosDevice.currentTrack()
-        .then((track) =>
-          env.logger.debug 'Current track ' + JSON.stringify(track,null,2)
-          @setAttr("info",track.title)
-        )
+        if state is "playing" and @announcement is false
+          @setAttr("status",state)
+          @sonosDevice.currentTrack()
+          .then((track) =>
+            env.logger.debug 'Current track ' + JSON.stringify(track,null,2)
+            @setAttr("info",track.title)
+          )
+        if state is "playing" and @announcement
+          @setAttr("status","announcement")
+          @setAttr("info","")          
+        if state is "stopped"
+          @setAttr("status","idle")
+          @setAttr("info","")
+        if state is "stopped" and @announcement
+          @announcement = false
+          @setAttr("status","idle")
+          @setAttr("info","")
 
       @sonosDevice.on 'Volume', (volume) =>
         env.logger.debug 'Volume changed to ' + volume
@@ -569,10 +576,6 @@ module.exports = (env) ->
       @sonosDevice.on 'Mute', (isMuted) =>
         env.logger.debug 'Mute changed to ' + isMuted
 
-      @sonosDevice.on 'Error', (err) =>
-          env.logger.error 'Error in SonosDevice ' + err
-
-
     setAttr: (attr, _status) =>
       @attributeValues[attr] = _status
       @emit attr, @attributeValues[attr]
@@ -580,10 +583,9 @@ module.exports = (env) ->
 
     playAnnouncement: (_url, _vol) =>
       return new Promise((resolve,reject) =>
+        @announcement = true
         unless @sonosDevice?
           reject("Device not online")
-        @setAttr("status","announcement")
-        @setAttr("info","")
         media =
           uri : _url
           onlyWhenPlaying: false
