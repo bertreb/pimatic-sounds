@@ -62,7 +62,7 @@ In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sound
 
 In the text string you can use variables to create dynamic voice text.
 
-In the file string you can also use variables to create dynamic selection of audio files. The resulting filenames ***must be without spaces!***
+In the file string you can also use variables to create dynamic selection of audio files. A variable-only file string must still be enclosed by "". The resulting filenames ***must be without spaces!***
 
 You can set the mainvolume with the command 'play vol [0-100] on mysoundsdevice'.
 The 'vol [0-100]' after text or file is optional and will override the mainvolume. If not set, the value of the mainvolume is 20.
