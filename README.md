@@ -50,7 +50,7 @@ Create a Sonos device with the following config.
 The function of a device is controlled via rules
 The ACTION rule syntax is:
 
-**play** [text|file|vol] ["test text for tts"|"filename"] [**vol** [0-100]] **on** [ChromecastDevice]
+**play** [text|file|vol] ["$variable | text for tts or audio file"|"filename"] [**vol** [0-100]] **on** [ChromecastDevice]
 
 The 3 type of command lines are:
 1. **play text** "this is a nice text" **vol** 50 **on** mysoundsdevice
