@@ -35,3 +35,10 @@
 	* adding variable in filename string
 * 20200215, v0.0.20
 	* fix replay live stream
+* 20200216, v0.0.21
+	* improved error message handling
+	* changed on/offline checker to 1 minute
+	* changed startup delay to 15 seconds
+* 20200217, v0.0.22
+	* added group device
+	* added $variable or number for volume setting

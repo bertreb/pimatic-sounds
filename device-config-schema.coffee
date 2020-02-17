@@ -13,7 +13,7 @@ module.exports = {
         descpription: "Plays initSound.mp3 on (re)startup of device"
         type: "boolean"
         default: true
-   }
+  }
   SonosDevice: {
     title: "SonosDevice config options"
     type: "object"
@@ -27,5 +27,24 @@ module.exports = {
         descpription: "Plays initSound.mp3 on (re)startup of device"
         type: "boolean"
         default: true
+  }
+  GroupDevice: {
+    title: "GroupDevice config options"
+    type: "object"
+    extensions: ["xLink", "xAttributeOptions"]
+    properties:
+      devices:
+        description: "Sounds devices"
+        type: "array"
+        default: []
+        format: "table"
+        items:
+          type: "object"
+          required: ["name"]
+          properties:
+            name:
+              description: "Name of the Sounds Devices."
+              type: "string"
+              enum: []
   }
 }

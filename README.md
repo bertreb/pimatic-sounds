@@ -45,17 +45,37 @@ Create a Sonos device with the following config.
   "xAttributeOptions": [],
 }
 ```
+
+### Group Device
+Create a Group device with the following config.
+
+```
+{
+  "id": "testgroupcast",      // id for usage within Pimatic
+  "name": "testgroupcast",    // name for usage within Pimatic
+  "class": "GroupDevice"
+  "playInit": true            // plays initSound.mp3 after (re)start of device
+  "devices": [                // list of SoundsDevices
+    "name": "id of a SoundDevice"
+    ]
+  "xAttributeOptions": [],
+}
+```
+The GroupDevice is combining existing SoundsDevices to be used as an extra device.
+In the GroupsDevice config you can select and add existing SoundsDevices.
+In the rules the groups device will be available as an extra play device option.
+
 ## Controlling the devices
 
 The function of a device is controlled via rules
 The ACTION rule syntax is:
 
-**play** [text|file|vol] ["$variable | text for tts"|"audio filename"] [**vol** [0-100]] **on** [ChromecastDevice]
+**play** [text|file|vol [number|variable]] ["$variable | text for tts"|"audio filename"] [**vol** [number|variable]] **on** [ChromecastDevice|SonosDevice|GroupDevice]
 
 Some examples of command lines are:
 1. **play text** "this is a nice text" **vol** 50 **on** mysoundsdevice
 2. **play file** "nice-music.mp3" **vol** 25 **on** mysoundsdevice
-3. **play file** "$that-funky-variable" **on** mysoundsdevice
+3. **play file** "$that-funky-variable" vol $loud-music **on** mysoundsdevice
 4. **play vol** [0-100] **on** mysoundsdevice
 
 In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sounds is created. You can put mp3 files in that directory. You can create subdirectories in sounds and can use them in the rule.
@@ -63,6 +83,8 @@ In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sound
 In the text string you can use variables to create dynamic voice text.
 
 In the file string you can also use variables to create dynamic selection of audio files. A variable-only file string must still be enclosed by "". The resulting filenames ***must be without spaces!***
+
+For the volume variable a number or a variable can be used.
 
 You can set the mainvolume with the command 'play vol [0-100] on mysoundsdevice'.
 The 'vol [0-100]' after text or file is optional and will override the mainvolume. If not set, the value of the mainvolume is 20.
