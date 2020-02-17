@@ -70,7 +70,7 @@ In the rules the groups device will be available as an extra play device option.
 The function of a device is controlled via rules
 The ACTION rule syntax is:
 
-**play** [text|file|vol [number|variable]] ["$variable | text for tts"|"audio filename"] [**vol** [number|variable]] **on** [ChromecastDevice|SonosDevice|GroupDevice]
+**play** [text|file|vol [number|$variable]] ["$variable"|"text for tts"]|["audio filename"|"$variable"] [**vol** [number|$variable]] **on** [ChromecastDevice | SonosDevice | GroupDevice]
 
 Some examples of command lines are:
 1. **play text** "this is a nice text" **vol** 50 **on** mysoundsdevice
