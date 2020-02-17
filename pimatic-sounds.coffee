@@ -945,7 +945,7 @@ module.exports = (env) ->
                     else
                       return __("\"%s\" volume variable no value", @text)
                   else
-                    @newVolume = @volume
+                    newVolume = @volume
                   @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number newVolume)
                   .then(()=>
                     env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + newVolume
@@ -973,7 +973,7 @@ module.exports = (env) ->
                   else
                     return __("\"%s\" volume variable no value", @text)
                 else
-                  @newVolume = @volume
+                  newVolume = @volume
                 @soundsDevice.playAnnouncement(fullFilename, Number newVolume)
                 .then(()=>
                   env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
