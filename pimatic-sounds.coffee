@@ -71,6 +71,8 @@ module.exports = (env) ->
           @server.removeAllListeners()
         if @browser?
           @browser.stop()
+        if bonjour?
+          bonjour.destroy()
         env.logger.debug "Stopping plugin, closing server"
 
       pluginConfigDef = require './pimatic-sounds-config-schema'
@@ -142,11 +144,11 @@ module.exports = (env) ->
       @framework.ruleManager.addActionProvider(new SoundsActionProvider(@framework, @soundsAllClasses, @soundsDir))
 
       @framework.deviceManager.on('discover', (eventData) =>
-        @framework.deviceManager.discoverMessage 'pimatic-sounds', 'In test' # Searching for new devices'
+        @framework.deviceManager.discoverMessage 'pimatic-sounds', 'Searching for new devices'
 
         SonosDiscovery.DeviceDiscovery((device) =>
           #env.logger.info "Sonos Device found with IP " +  device.host
-          if not inConfigIp(device.host,null,"SonosDevice")
+          if not ipInConfig(device.host, null, "SonosDevice")
             newId = "sonos_" + device.host.split('.').join("")
             config =
               id: newId
@@ -159,15 +161,22 @@ module.exports = (env) ->
         @browser = bonjour.find({type: 'googlecast'}, (service) =>
           for address in service.addresses
             if address.split('.').length == 4
-              #env.logger.debug "Found ip: " + address + ", port: " + service.port + ", label: " + service.txt.md
-              if not inConfigIp(address, service.port , "ChromecastDevice")
+              env.logger.debug "Found ip: " + address + ", port: " + service.port + ", label: " + service.txt.fn
+              #env.logger.debug "service " + JSON.stringify(service)
+              if not ipInConfig(address, service.port , "ChromecastDevice")
                 if service.txt.md?
-                  newId = (service.txt.md).replace(/\s+/g, '_') + "_" + address.split('.').join("")
+                  if service.txt.fn?
+                    newName = service.txt.md + " - " + service.txt.fn
+                    newId = (service.txt.md).replace(/\s+/g, '_') + "_" + service.txt.fn
+                  else
+                    newName = service.txt.md + "_" + address.split('.').join("") + " - " + service.port
+                    newId = (service.txt.md).replace(/\s+/g, '_') + "_" + address.split('.').join("") + "-" + service.port
                 else
-                  newId = "cast_" + address.split('.').join("")
+                  newName = "cast " + address.split('.').join("") + " - " + service.port
+                  newId = "cast_" + address.split('.').join("") + "-" + service.port
                 config =
                   id: newId
-                  name: service.txt.md + " " + address.split('.').join("")
+                  name: newName
                   class: "ChromecastDevice"
                   ip: address
                   port: service.port
@@ -177,7 +186,7 @@ module.exports = (env) ->
         )
       )
 
-      inConfigIp = (deviceIP, devicePort, cn) =>
+      ipInConfig = (deviceIP, devicePort, cn) =>
         for device in @framework.deviceManager.devicesConfig
           if device.ip?
             if ((device.ip).indexOf(String deviceIP) >= 0) and cn.indexOf(device.class)>=0
