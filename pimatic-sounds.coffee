@@ -14,6 +14,7 @@ module.exports = (env) ->
   SonosDiscovery = require('sonos')
   util = require('util')
   getContentType = require('./content-types.js')
+  bonjour = require('bonjour')()
 
   class SoundsPlugin extends env.plugins.Plugin
     init: (app, @framework, @config) =>
@@ -68,7 +69,9 @@ module.exports = (env) ->
         if @server?
           @server.close()
           @server.removeAllListeners()
-          env.logger.debug "Stopping plugin, closing server"
+        if @browser?
+          @browser.stop()
+        env.logger.debug "Stopping plugin, closing server"
 
       pluginConfigDef = require './pimatic-sounds-config-schema'
       @configProperties = pluginConfigDef.properties
@@ -80,6 +83,7 @@ module.exports = (env) ->
       @soundsClasses = ["ChromecastDevice","SonosDevice"]
       @soundsAllClasses = ["ChromecastDevice","SonosDevice","GroupDevice"]
       @enumSoundsDevices = []
+      @defaultChromecastPort = 8009
       #@enumSoundsGroups = []
       #for _soundGroup in _.find(@framework.config.devices, (c) => c.class.indexOf("GroupDevice")>=0)
       #  unless _.find(@enumSoundsGroups, (d)=> d.name == _soundGroup.name)
@@ -95,22 +99,23 @@ module.exports = (env) ->
         if _.find(@soundsClasses,(c) => c.indexOf(device.class)>=0)
           unless _.find(@enumSoundsDevices, (d)=> d.name == device.id)
             deviceConfigDef["GroupDevice"].properties.devices.items.properties.name["enum"].push device.id
-        # Add @enumSoundsGroups per SoundsDevices
-        #if _.find(@enumSoundsGroups,(c) => c.indexOf(device.class)>=0)
-        #deviceConfigDef[className].properties.groups.items.properties.name["enum"] = @enumSoundsGroups
+        #Add default portnumber for ChromecastDevices
+        if (device.class).indexOf("ChromecastDevice")>=0
+          unless device.port?
+            @framework.config.devices[i]["port"] = @defaultChromecastPort
 
       @framework.on 'deviceAdded', (device) =>
         if _.find(@soundsClasses,(c) => c.indexOf(device.class)>=0)
           #_enumSoundsDevices = deviceConfigDef["GroupDevice"].properties.devices.items.properties.name["enum"]
           env.logger.debug "New Sounds device added to Group enum"
           unless _.find(@enumSoundsDevices, (d)=> d.name == device.id)
-            deviceConfigDef["GroupDevice"].properties.devices.items.properties.name["enum"].push device.id
+            deviceConfigDef["GroupDevice"].properties.devices.push device.id
       @framework.on 'deviceRemoved', (device) =>
         if _.find(@soundsClasses,(c) => c.indexOf(device.class)>=0)
           #_enumSoundsDevicesTemp = deviceConfigDef["GroupDevice"].properties.devices.items.properties.name["enum"]
-          _.pull(deviceConfigDef["GroupDevice"].properties.devices.items.properties.name["enum"], device.id)
-          env.logger.debug "SoundsDevice '#{_device.config.id}' device removed from Group enum: " + _enumSoundsDevices
-          #deviceConfigDef["GroupDevice"].properties.devices.items.properties.name["enum"] = _enumSoundsDevices
+          _soundsDevices = _.pull(deviceConfigDef["GroupDevice"].properties.devices, device.id)
+          env.logger.debug "SoundsDevice '#{_device.config.id}' device removed from Group Devices: " + _soundsDevices
+          deviceConfigDef["GroupDevice"].properties.devices = _soundsDevices
       ###
       @framework.on 'deviceChanged', (device) =>
         if _.find(["GroupDevice"],(c) => c.indexOf(device.class)>=0)
@@ -137,11 +142,11 @@ module.exports = (env) ->
       @framework.ruleManager.addActionProvider(new SoundsActionProvider(@framework, @soundsAllClasses, @soundsDir))
 
       @framework.deviceManager.on('discover', (eventData) =>
-        @framework.deviceManager.discoverMessage 'pimatic-sounds', 'Not yet implemented' # Searching for new devices'
-        ###
+        @framework.deviceManager.discoverMessage 'pimatic-sounds', 'In test' # Searching for new devices'
+
         SonosDiscovery.DeviceDiscovery((device) =>
           #env.logger.info "Sonos Device found with IP " +  device.host
-          if not inConfigIp(device.host,"SonosDevice")
+          if not inConfigIp(device.host,null,"SonosDevice")
             newId = "sonos_" + device.host.split('.').join("")
             config =
               id: newId
@@ -150,34 +155,39 @@ module.exports = (env) ->
               ip: device.host
             @framework.deviceManager.discoveredDevice( "pimatic-sounds", config.name, config)
         )
-        scanner = mdns.createBrowser(mdns.tcp('googlecast'),
-          {resolverSequence: mdns.Browser.defaultResolverSequence})
-        scanner.on('serviceUp', (service) =>
-          name = service.txtRecord.fn
-          ip = service.addresses[0]
-          if not inConfigIp(ip , "ChromecastDevice")
-            if name?
-              newId = name.replace(" ","_")
-            else
-              newId = "cast_" + ip.split('.').join("")
-            config =
-              id: newId
-              name: newId
-              class: "ChromecastDevice"
-              ip: ip
-            @framework.deviceManager.discoveredDevice( "pimatic-sounds", config.name, config)
+      
+        @browser = bonjour.find({type: 'googlecast'}, (service) =>
+          for address in service.addresses
+            if address.split('.').length == 4
+              #env.logger.debug "Found ip: " + address + ", port: " + service.port + ", label: " + service.txt.md
+              if not inConfigIp(address, service.port , "ChromecastDevice")
+                if service.txt.md?
+                  newId = (service.txt.md).replace(/\s+/g, '_') + "_" + address.split('.').join("")
+                else
+                  newId = "cast_" + address.split('.').join("")
+                config =
+                  id: newId
+                  name: service.txt.md + " " + address.split('.').join("")
+                  class: "ChromecastDevice"
+                  ip: address
+                  port: service.port
+                @framework.deviceManager.discoveredDevice( "pimatic-sounds", config.name, config)
+              else
+                env.logger.info "Device already in config"
         )
-        scanner.start()
-        setTimeout (=> scanner.stop()), 15000
-        ###
       )
 
-      inConfigIp = (deviceIP, cn) =>
+      inConfigIp = (deviceIP, devicePort, cn) =>
         for device in @framework.deviceManager.devicesConfig
           if device.ip?
-            if ((device.ip).indexOf(String deviceIP) >= 0) and device.class == cn
-              env.logger.info "device " + deviceIP + " (" + cn + ") already in config"
-              return true
+            if ((device.ip).indexOf(String deviceIP) >= 0) and cn.indexOf(device.class)>=0
+              if device.port?
+                if Number device.port == Number devicePort
+                  env.logger.info "device " + deviceIP + " (" + cn + ") already in config"
+                  return true
+              else
+                env.logger.info "device " + deviceIP + " (" + cn + ") already in config"
+                return true
         return false
 
 
@@ -214,6 +224,7 @@ module.exports = (env) ->
       # Check if Device is online
       #
       @ip = @config.ip
+      @port = (if @config.port? then @config.port else 8009) # default single device port
       @onlineChecker = () =>
         env.logger.debug "Check online status device '#{@id}"
         ping.promise.probe(@ip,{timeout: 2})
@@ -282,9 +293,14 @@ module.exports = (env) ->
       @gaDevice.client.on 'close', () =>
         @deviceStatus = off
         env.logger.debug "Client Client closing" 
-        @onlineChecker()
+        @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
 
-      @gaDevice.connect(@ip, (err) =>
+      opts =
+        host: @ip
+        port: @port
+      env.logger.debug "Connecting to gaDevice with opts: " + opts
+
+      @gaDevice.connect(opts, (err) =>
         if err?
           env.logger.debug "Connect error " + err.message
           return
@@ -293,15 +309,19 @@ module.exports = (env) ->
 
         if @config.playInit or !(@config.playInit?)
           @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume)
+          .then(()=>
+          ).catch((err)=>
+            env.logger.debug "playAnnouncement error handled"
+          )
 
         @gaDevice.on 'status', (status) =>
           #
           # get volume
           #
-          if status.volume?.level
+          if status.volume?.level?
             @devicePlayingVolume = status.volume.level
             @mainVolume = @devicePlayingVolume
-            env.logger.debug "New volume level ====> " + @devicePlayingVolume
+            env.logger.debug "New mainvolume '" + @devicePlayingVolume + "'' in device '" + @id + "'"
 
           @gaDevice.getSessions((err,sessions) =>
             if err?
@@ -325,7 +345,7 @@ module.exports = (env) ->
                       @devicePlaying = false
                       @setAttr "status", "idle"
                       @setAttr "info", ""
-                    else if status.playerState is "PLAYING" and @devicePlaying is false
+                    else if status.playerState is "PLAYING" and not @devicePlaying
                       @devicePlaying = true
                       if contentId
                         if (status.media.contentId).startsWith("http")
@@ -347,7 +367,7 @@ module.exports = (env) ->
       @emit attr, @attributeValues[attr]
       env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
 
-    playAnnouncement: (_url, _vol) =>
+    playAnnouncement: (_url, _vol, _duration) =>
       return new Promise((resolve,reject) =>
         unless @gaDevice?
           reject("Device not online")
@@ -366,19 +386,22 @@ module.exports = (env) ->
           #images: [
           #  { url: "https://avatars0.githubusercontent.com/u/6502361?v=3&s=20" }
           #],
+
         media =
           contentId : _url
           contentType: getContentType(_url)
           streamType: 'BUFFERED'
-          metadata: defaultMetadata
+          #metadata: defaultMetadata
 
         try
           @gaDevice.launch(DefaultMediaReceiver, (err, app) =>
             if err?
-              env.logger.error "Launch error " + err.message
-              reject()
+              env.logger.debug "Launch error " + err.message
+              reject("Launch error")
+              return
             unless app?
               reject("Launch error app is undefined")
+              return
             app.on 'status', (status) =>
               if status.playerState is "IDLE" and status.idleReason is "FINISHED"
                 @stopCasting()
@@ -402,8 +425,15 @@ module.exports = (env) ->
                 if err?
                   env.logger.error 'Error in playing announcement: ' + err
                   reject(err)
+                  return
                 @annoucement = true
                 env.logger.debug "Playing annoucement on device '" + @id + "' with volume " + _vol
+                if _duration? or _duration > 0
+                  # set durationTimer
+                  setTimeout(=>
+                    @stopCasting()
+                    env.logger.debug "Annoucement image auto stopped"
+                  ,_duration * 1000)
               )
             )
           )
@@ -426,6 +456,7 @@ module.exports = (env) ->
         new Promise((resolve) => @client.connect(connectOptions, resolve))
       opts =
         host: @ip
+        port: @port
 
       try
         @client.connectAsync(opts)
@@ -449,11 +480,10 @@ module.exports = (env) ->
           return @client.close()
         )
         .catch((err) =>
-          env.logger.error "Error in stop casting " + err
+          env.logger.debug "Error in stop casting " + err
         )
       catch err
         env.logger.error "Error in stopCasting " + err
-
 
     restartPlaying: (_url, _vol) =>
       return new Promise((resolve,reject) =>
@@ -471,22 +501,25 @@ module.exports = (env) ->
             .then(()=>
               app.load(@deviceReplayingMedia, {autoplay:true}, (err,status) =>
                 if err?
-                  env.logger.error 'Error load replay ' + err.message
+                  env.logger.error 'Error load replay ' + err
                   reject(err)
+                  return
                 @annoucement = false
                 env.logger.debug '(Re)playing ' + _url
                 resolve()
               )
             ).catch((err)=>
-              env.logger.error "Error setting volume " + err.message
+              env.logger.error "Error setting volume " + err
             )
           )
         catch err
-          env.logger.error "Error restarting playing " + err.message
+          env.logger.error "Error restarting playing " + err
       )
 
     setVolume: (vol) =>
       return new Promise((resolve,reject) =>
+        unless vol?
+          reject()
         if vol > 1 then vol /= 100
         if vol < 0 then vol = 0
         @mainVolume = vol
@@ -496,7 +529,7 @@ module.exports = (env) ->
         env.logger.debug "Setvolume data: " + JSON.stringify(data,null,2)
         @gaDevice.setVolume(data, (err) =>
           if err?
-            reject(err)
+            reject()
           resolve()
         )
       )
@@ -577,8 +610,8 @@ module.exports = (env) ->
       @language = @plugin.config.language ? "en"
       @gtts = require('node-gtts')(@language)
 
-      @mainVolume = 0.40
-      @initVolume = 0.40
+      @mainVolume = 20
+      @initVolume = 40
       
       @serverIp = @plugin.serverIp
       @serverPort = @plugin.serverPort
@@ -629,7 +662,7 @@ module.exports = (env) ->
           @setAttr("info","")
 
       @sonosDevice.on 'Volume', (volume) =>
-        env.logger.debug 'Volume changed to ' + volume
+        env.logger.debug "New mainvolume '" + @devicePlayingVolume + "'' in device '" + @id + "'"
         @mainVolume = volume
 
       @sonosDevice.on 'Mute', (isMuted) =>
@@ -640,7 +673,7 @@ module.exports = (env) ->
       @emit attr, @attributeValues[attr]
       env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
 
-    playAnnouncement: (_url, _vol) =>
+    playAnnouncement: (_url, _vol, _duration) =>
       return new Promise((resolve,reject) =>
         @announcement = true
         unless @sonosDevice?
@@ -665,7 +698,7 @@ module.exports = (env) ->
 
     setVolume: (vol) =>
       return new Promise((resolve,reject) =>
-        if vol > 1 then vol /= 100
+        if vol > 100 then vol 100
         if vol < 0 then vol = 0
         @mainVolume = vol
         @devicePlayingVolume = vol
@@ -675,6 +708,7 @@ module.exports = (env) ->
         @sonosDevice.setVolume(data, (err) =>
           if err?
             reject(err)
+            return
           resolve()
         )
       )
@@ -704,6 +738,25 @@ module.exports = (env) ->
           else
             checkMultipleDevices.push _device
 
+      #
+      # Configure attributes
+      #
+      @attributes = {}
+      @attributeValues = {}
+      _attrs = ["status","info"]
+      for _attr in _attrs
+        @attributes[_attr] =
+          description: "The " + _attr
+          type: "string"
+          label: _attr
+          acronym: _attr
+        @attributeValues[_attr] = ""
+        @_createGetter(_attr, =>
+          return Promise.resolve @attributeValues[_attr]
+        )
+        @setAttr _attr, @attributeValues[_attr]
+      @setAttr("status","idle")
+
       @serverIp = @plugin.serverIp
       @serverPort = @plugin.serverPort
       @soundsDir = @plugin.soundsDir
@@ -721,15 +774,22 @@ module.exports = (env) ->
 
       super()
 
-    playAnnouncement: (_url, _vol) =>
+    playAnnouncement: (_url, _vol, _duration) =>
       return new Promise((resolve,reject) =>
         #env.logger.info "@framework.deviceManager.getDeviceById(@id) " + JSON.stringify((@framework.deviceManager.getDeviceById(@id)).config.devices,null,2)
         for _dev in (@framework.deviceManager.getDeviceById(@id)).config.devices
           device = @framework.deviceManager.getDeviceById(_dev.name)
           if device.deviceStatus is on 
-            device.playAnnouncement(_url, Number _vol)
+            device.playAnnouncement(_url, Number _vol, _duration)
             .then(()=>
               env.logger.debug "Groupsdevice initiates announcement on device '" + device.id + "'"
+              @setAttr("status","annoucement")
+              @setAttr("info",_url)
+              @announcementTimer = setTimeout(=>
+                @setAttr("status","")
+                @setAttr("info","")
+              ,5000)
+
             ).catch((err)=>
               env.logger.debug "Error in Group playAnnouncement: " + err
               reject()
@@ -739,7 +799,13 @@ module.exports = (env) ->
         resolve()
       )
 
+    setAttr: (attr, _status) =>
+      @attributeValues[attr] = _status
+      @emit attr, @attributeValues[attr]
+      env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
+
     destroy: ->
+      clearTimeout(@announcementTimer)
       super()
     
   class SoundsActionProvider extends env.actions.ActionProvider
@@ -763,6 +829,8 @@ module.exports = (env) ->
       match = null
       volume = null
       volumeVar = null
+      duration = 0
+      durationVar = null
       soundType = ""
 
       setText = (m, txt) =>
@@ -815,10 +883,23 @@ module.exports = (env) ->
           context?.addError("Maximum volume is 100")
           return
         @mainVolume = vol
+        volume = vol
         return
 
       setMainVolumeVar = (m, tokens) =>
         volumeVar = tokens
+        return
+
+      setDuration = (m, dur) =>
+        if dur < 1
+          context?.addError("Duration must be mimimal 1 second")
+        if dur >120
+          context?.addError("Duration can be maximal 120 seconds")
+        duration = duration
+        return
+
+      setDurationVar = (m, tokens) =>
+        durationVar = tokens
         return
 
       setVolume = (m, vol) =>
@@ -906,7 +987,7 @@ module.exports = (env) ->
         return {
           token: match
           nextInput: input.substring(match.length)
-          actionHandler: new SoundsActionHandler(@framework, @, text, soundType, soundsDevice, volume, volumeVar)
+          actionHandler: new SoundsActionHandler(@framework, @, text, soundType, soundsDevice, volume, volumeVar, duration)
         }
       else
         return null
@@ -914,7 +995,7 @@ module.exports = (env) ->
 
   class SoundsActionHandler extends env.actions.ActionHandler
 
-    constructor: (@framework, @actionProvider, @textIn, @soundType, @soundsDevice, @volume, @volumeVar) ->
+    constructor: (@framework, @actionProvider, @textIn, @soundType, @soundsDevice, @volume, @volumeVar, @duration) ->
 
 
     executeAction: (simulate) =>
@@ -939,7 +1020,6 @@ module.exports = (env) ->
                   if @volumeVar?
                     newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
                     if newVolume?
-                      env.logger.info "varValue " + newVolume        
                       if newVolume > 100 then newVolume = 100
                       if newVolume < 0 then newVolume = 0
                     else
@@ -962,19 +1042,21 @@ module.exports = (env) ->
                 if @text.indexOf(" ")>=0
                   env.logger.debug "No spaces allowed in filename, rule not executed"
                   return __("\"%s\" No spaces allowed in filename, rule not executed")
-                fullFilename = (@soundsDevice.media.base + "/" + @text)
+                if @text.startsWith("http")
+                  fullFilename = @text
+                else
+                  fullFilename = (@soundsDevice.media.base + "/" + @text)
                 env.logger.debug "Playing sound file... " + fullFilename
                 if @volumeVar?
                   newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
                   if newVolume?
-                    env.logger.info "varValue " + newVolume        
                     if newVolume > 100 then newVolume = 100
                     if newVolume < 0 then newVolume = 0
                   else
                     return __("\"%s\" volume variable no value", @text)
                 else
                   newVolume = @volume
-                @soundsDevice.playAnnouncement(fullFilename, Number newVolume)
+                @soundsDevice.playAnnouncement(fullFilename, Number newVolume, @duration)
                 .then(()=>
                   env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
                   return __("\"%s\" was played ", @textIn)
@@ -987,7 +1069,6 @@ module.exports = (env) ->
               if @volumeVar?
                 newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
                 if newVolume?
-                  env.logger.info "varValue " + newVolume        
                   if newVolume > 100 then newVolume = 100
                   if newVolume < 0 then newVolume = 0
                 else

@@ -9,6 +9,10 @@ module.exports = {
         descpription: "The IP address of the Chromecast device"
         type: "string"
         required: true
+      port:
+        descpription: "The port number for the Chromecast service. Is set automatically"
+        type: "number"
+        default: 8009
       playInit:
         descpription: "Plays initSound.mp3 on (re)startup of device"
         type: "boolean"
