@@ -463,7 +463,7 @@ module.exports = (env) ->
             @deviceReplayingInfo = @devicePlayingInfo
             @deviceReplayingVolume = @devicePlayingVolume
             @deviceReplayingMedia = @devicePlayingMedia
-            env.logger.debug "Replaying values set"
+            env.logger.debug "Replaying values set, vol: " + @deviceReplayingVolume + ", url: " + @deviceReplayingUrl
           defaultMetadata =
             metadataType: 0
             title: "Pimatic Announcement"
@@ -601,8 +601,8 @@ module.exports = (env) ->
             if err?
               env.logger.error "Launch error " + err.message
               return
-            @_devicePlayer = app
-            @setVolume(_vol)
+            #@_devicePlayer = app
+            @setVolume(device, _vol)
             .then(()=>
               app.load(@deviceReplayingMedia, {autoplay:true}, (err,status) =>
                 if err?
@@ -645,6 +645,7 @@ module.exports = (env) ->
         try
           if @statusDevice?
             @statusDevice.close()
+            @statusDevice.removeAllListeners()
         catch err
           env.logger.debug "Destroy error handled " + err
         clearTimeout(@onlineCheckerTimer)
