@@ -32,6 +32,9 @@ Create a Chromecast device with the following config.
   "xAttributeOptions": [],
 }
 ```
+The Cromecast device types are a single, grouped or paired devices. The discovery will find them and the can be added and used in the rules
+
+
 ### Sonos Device
 Create a Sonos device with the following config.
 
