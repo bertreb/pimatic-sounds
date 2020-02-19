@@ -258,9 +258,7 @@ module.exports = (env) ->
       @ip = @config.ip
       @port = (if @config.port? then @config.port else 8009) # default single device port
       @onlineChecker = () =>
-        if @onlineCheckerTimer?
-          env.logger.debug "Online checker already running"
-          return
+        clearTimeout(@onlineCheckerTimer)
         env.logger.debug "Check online status device '#{@id}"
         ping.promise.probe(@ip,{timeout: 2})
         .then((host)=>
@@ -271,12 +269,12 @@ module.exports = (env) ->
               @setAttr("status","idle")
               @setAttr("info","")
               @initSounds()
-            @startupTimer = setTimeout(startupTime,15000)
+            @startupTimer = setTimeout(startupTime,20000)
           else
             @deviceStatus = off
             @setAttr("status","offline")
             env.logger.debug "Device '#{@id}' offline"
-            @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+            @onlineCheckerTimer = setTimeout(@onlineChecker,30000)
         )
       @onlineChecker()
 
@@ -329,19 +327,17 @@ module.exports = (env) ->
         @deviceStatus = off
         if err.message.indexOf("ECONNREFUSED")
           env.logger.debug "Network config probably changed, please start discovery"
-          #@framework.deviceManager.discoverDevices(15000)
-        env.logger.debug "Error in statusDevice " + err.message
-        try
-          @destroy()
-        catch err
-          env.logger.debug "GaDevice error on destroy solved"
-        @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+        else if err.message.indexOf("ETIMEDOUT")
+          env.logger.debug "Device offline"
+          @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+        else
+          env.logger.debug "Error in status device " + err.message
 
       # subscribe to inner client
       @statusDevice.client.on 'close', () =>
         @deviceStatus = off
         env.logger.debug "Client Client closing" 
-        @onlineCheckerTimer = setTimeout(@onlineChecker,10000)
+        #@onlineCheckerTimer = setTimeout(@onlineChecker,10000)
 
       opts =
         host: @ip
@@ -371,43 +367,44 @@ module.exports = (env) ->
             @mainVolume = @devicePlayingVolume
             env.logger.debug "New mainvolume '" + @devicePlayingVolume + "'' in device '" + @id + "'"
 
-          @statusDevice.getSessions((err,sessions) =>
-            if err?
-              env.logger.error "Error getSessions " + err.message
-              return
-            if sessions.length > 0
-              firstSession = sessions[0]
-              if firstSession.transportId?
-                #
-                # Join the chromecast info device
-                #
-                @statusDevice.join(firstSession, DefaultMediaReceiver, (err, app) =>
-                  if err?
-                    env.logger.error "Join error " + err.message
-                    return
-                  #@_deviceInfo = app
-                  app.on 'status' , (status) =>
-                    title = status?.media?.metadata?.title
-                    contentId = status?.media?.contentId
-                    if status.playerState is "IDLE" and @devicePlaying
-                      @devicePlaying = false
-                      @setAttr "status", "idle"
-                      @setAttr "info", ""
-                    else if status.playerState is "PLAYING" and not @devicePlaying
-                      @devicePlaying = true
-                      if contentId
-                        if (status.media.contentId).startsWith("http")
-                          @devicePlayingUrl = status.media.contentId
-                      @devicePlayingInfo = (if status?.media?.metadata?.artist then status.media.metadata.artist else "")
-                      @devicePlayingMedia = status.media
-                      if @annoucement
-                        @setAttr "status", "announcement"
-                        @setAttr "info", @devicePlayingUrl
-                      else
-                        @setAttr "status", "playing"
-                        @setAttr "info", @devicePlayingInfo
-                )
-          )
+          if @statusDevice?
+            @statusDevice.getSessions((err,sessions) =>
+              if err?
+                env.logger.error "Error getSessions " + err.message
+                return
+              if sessions.length > 0
+                firstSession = sessions[0]
+                if firstSession.transportId?
+                  #
+                  # Join the chromecast info device
+                  #
+                  @statusDevice.join(firstSession, DefaultMediaReceiver, (err, app) =>
+                    if err?
+                      env.logger.error "Join error " + err.message
+                      return
+                    #@_deviceInfo = app
+                    app.on 'status' , (status) =>
+                      title = status?.media?.metadata?.title
+                      contentId = status?.media?.contentId
+                      if status.playerState is "IDLE" and @devicePlaying
+                        @devicePlaying = false
+                        @setAttr "status", "idle"
+                        @setAttr "info", ""
+                      else if status.playerState is "PLAYING" and not @devicePlaying
+                        @devicePlaying = true
+                        if contentId
+                          if (status.media.contentId).startsWith("http")
+                            @devicePlayingUrl = status.media.contentId
+                        @devicePlayingInfo = (if status?.media?.metadata?.artist then status.media.metadata.artist else "")
+                        @devicePlayingMedia = status.media
+                        if @annoucement
+                          @setAttr "status", "announcement"
+                          @setAttr "info", @devicePlayingUrl
+                        else
+                          @setAttr "status", "playing"
+                          @setAttr "info", @devicePlayingInfo
+                  )
+            )
       )
 
     setOpts: (ip, port) =>
@@ -436,19 +433,17 @@ module.exports = (env) ->
           @deviceStatus = off
           if err.message.indexOf("ECONNREFUSED")
             env.logger.debug "Network config probably changed, please start discovery"
-            #@framework.deviceManager.discoverDevices(15000)
-          env.logger.debug "Error in gaDevice " + err.message
-          #try
-          #  @destroy()
-          #catch err
-          #  env.logger.debug "GaDevice error on destroy solved"
-          @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+          else if err.message.indexOf("ETIMEDOUT")
+            env.logger.debug "Device offline"
+            @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+          else
+            env.logger.debug "Error in annauncement device " + err.message
 
         # subscribe to inner client
         @device.client.on 'close', () =>
           @deviceStatus = off
           env.logger.debug "Client Client closing" 
-          @onlineCheckerTimer = setTimeout(@onlineChecker,10000)
+          @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
 
         opts =
           host: @ip

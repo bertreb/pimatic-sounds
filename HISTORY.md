@@ -42,7 +42,7 @@
 * 20200217, v0.0.23
 	* added group device
 	* added $variable or number for volume setting
-* 20200218, v0.0.26
+* 20200218, v0.0.27
 	* added device discovery for Chromecast single, groups and pairs
 	* better naming in discovery
 	* release for testing NOT FOR PRODUCTION
