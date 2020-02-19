@@ -425,9 +425,14 @@ module.exports = (env) ->
         #  reject("Device not online")
         #  return
 
-        device = new Device()
+        #@stopCasting()
+        #.then(()=>
+        #).catch((err) =>
+        #  env.logger.debug "Nothing to stop on start of playAnnouncement " + err.message
+        #)
+        @device = new Device()
 
-        device.on 'error', (err) =>
+        @device.on 'error', (err) =>
           @deviceStatus = off
           if err.message.indexOf("ECONNREFUSED")
             env.logger.debug "Network config probably changed, please start discovery"
@@ -440,7 +445,7 @@ module.exports = (env) ->
           @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
 
         # subscribe to inner client
-        device.client.on 'close', () =>
+        @device.client.on 'close', () =>
           @deviceStatus = off
           env.logger.debug "Client Client closing" 
           @onlineCheckerTimer = setTimeout(@onlineChecker,10000)
@@ -450,7 +455,7 @@ module.exports = (env) ->
           port: @port
 
         env.logger.debug "Connecting to gaDevice with opts: " + JSON.stringify(opts,null,2)
-        device.connect(opts, (err) =>
+        @device.connect(opts, (err) =>
           if err?
             env.logger.debug "Connect error " + err.message
             return
@@ -479,7 +484,7 @@ module.exports = (env) ->
             #metadata: defaultMetadata
 
           try
-            device.launch(DefaultMediaReceiver, (err, app) =>
+            @device.launch(DefaultMediaReceiver, (err, app) =>
               if err?
                 env.logger.debug "Launch error " + err.message
                 reject("Launch error")
@@ -494,15 +499,15 @@ module.exports = (env) ->
                   .then(() =>
                     env.logger.debug "Casting stopped"
                     if @deviceReplaying
-                      @restartPlaying(device, @deviceReplayingUrl, @deviceReplayingVolume)
+                      @restartPlaying(@deviceReplayingUrl, @deviceReplayingVolume)
                       .then(()=>
                         env.logger.debug "Media restarted: " + @deviceReplayingUrl
-                        device.close()
-                        .then(()=>
-                          resolve()
-                        ).catch((err) =>
-                          env.logger.error "Error in closing announcement device " + err
-                        )
+                        @device.close()
+                        #.then(()=>
+                        #  resolve()
+                        #).catch((err) =>
+                        #  env.logger.error "Error in closing announcement device " + err
+                        #)
                       ).catch((err)=>
                         env.logger.error "Error startReplaying " + err
                         reject()
@@ -513,8 +518,8 @@ module.exports = (env) ->
                     reject()
                     return
                   )
-              @_devicePlayer = app
-              @setVolume(device, _vol)
+              #@_devicePlayer = app
+              @setVolume(@device, _vol)
               .then(()=>
                 app.load(media, {autoplay:true}, (err,status) =>
                   if err?
@@ -590,13 +595,39 @@ module.exports = (env) ->
           reject()
       )
 
-    restartPlaying: (device, _url, _vol) =>
+    restartPlaying: (_url, _vol) =>
       return new Promise((resolve,reject) =>
-        try
-          #media =
-          #  contentId : _url
-          #  contentType: getContentType(_url)
-          #  streamType: 'BUFFERED'
+        device = new Device()
+        device.on 'error', (err) =>
+          @deviceStatus = off
+          if err.message.indexOf("ECONNREFUSED")
+            env.logger.debug "Network config probably changed, please start discovery"
+            #@framework.deviceManager.discoverDevices(15000)
+          env.logger.debug "Error in gaDevice " + err.message
+          #try
+          #  @destroy()
+          #catch err
+          #  env.logger.debug "GaDevice error on destroy solved"
+          @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+
+        # subscribe to inner client
+        device.client.on 'close', () =>
+          @deviceStatus = off
+          env.logger.debug "Client Client closing" 
+          @onlineCheckerTimer = setTimeout(@onlineChecker,10000)
+
+        opts =
+          host: @ip
+          port: @port
+        #media =
+        #  contentId : _url
+        #  contentType: getContentType(_url)
+        #  streamType: 'BUFFERED'
+        device.connect(opts, (err) =>
+          if err?
+            env.logger.debug "Connect error " + err.message
+            return
+          @deviceStatus = on
           device.launch(DefaultMediaReceiver, (err, app) =>
             if err?
               env.logger.error "Launch error " + err.message
@@ -617,11 +648,10 @@ module.exports = (env) ->
               env.logger.error "Error setting volume " + err
             )
           )
-        catch err
-          env.logger.error "Error restarting playing " + err
+        )
       )
 
-    setVolume: (device, vol) =>
+    setVolume: (_device, vol) =>
       return new Promise((resolve,reject) =>
         unless vol?
           reject()
@@ -632,11 +662,12 @@ module.exports = (env) ->
         env.logger.debug "Setting volume to  " + vol
         data = {level: vol}
         env.logger.debug "Setvolume data: " + JSON.stringify(data,null,2)
-        device.setVolume(data, (err) =>
+        _device.setVolume(data, (err) =>
           if err?
             reject()
-          resolve()
+          resolve(data)
         )
+        resolve()
       )
 
     destroy: ->
