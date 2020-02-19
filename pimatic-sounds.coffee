@@ -71,8 +71,8 @@ module.exports = (env) ->
           @server.removeAllListeners()
         if @browser?
           @browser.stop()
-        if bonjour?
-          bonjour.destroy()
+        #if bonjour?
+        #  bonjour.destroy()
         env.logger.debug "Stopping plugin, closing server"
 
       pluginConfigDef = require './pimatic-sounds-config-schema'
@@ -86,10 +86,6 @@ module.exports = (env) ->
       @soundsAllClasses = ["ChromecastDevice","SonosDevice","GroupDevice"]
       @enumSoundsDevices = []
       @defaultChromecastPort = 8009
-      #@enumSoundsGroups = []
-      #for _soundGroup in _.find(@framework.config.devices, (c) => c.class.indexOf("GroupDevice")>=0)
-      #  unless _.find(@enumSoundsGroups, (d)=> d.name == _soundGroup.name)
-      #    @enumSoundsGroups.push _soundGroup.name
       env.logger.debug "Found enum SoundsGroups: " + @enumSoundsGroups
       for device,i in @framework.config.devices
         className = device.class
@@ -156,26 +152,49 @@ module.exports = (env) ->
               class: "SonosDevice"
               ip: device.host
             @framework.deviceManager.discoveredDevice( "pimatic-sounds", config.name, config)
-        )
-      
+        )      
         @browser = bonjour.find({type: 'googlecast'}, (service) =>
           for address in service.addresses
             if address.split('.').length == 4
-              env.logger.debug "Found ip: " + address + ", port: " + service.port + ", label: " + service.txt.fn
-              #env.logger.debug "service " + JSON.stringify(service)
-              if not ipInConfig(address, service.port , "ChromecastDevice")
+              @allreadyInConfig = false
+              env.logger.debug "Found ip: " + address + ", port: " + service.port + ", friendlyName: " + service.txt.fn
+              friendlyName = service.txt.fn
+              checkId = (service.txt.md).replace(/\s+/g, '_') + "_" + friendlyName
+              device = @framework.deviceManager.getDeviceById(service.txt.id)
+              if device?
+                @allreadyInConfig = true
+                #@initSounds = false
+                #env.logger.info "device.config " + JSON.stringify(device.config,null,2)
+                #env.logger.info "service.name " + service.name
+                #env.logger.info "config.devices " + JSON.stringify(_.find(@framework.config.devices,(d)=> d.id == service.name),null,2)
+                if address.indexOf(device.config.ip)<0 or service.port != device.config.port
+                  config =
+                    id: device.config.id
+                    name: device.config.name
+                    ip: address
+                    class: device.config.class
+                    port: service.port
+                    playInit: device.config.playInit
+                  
+                  #@framework.deviceManager.updateDeviceByConfig(config)
+                  device.config.ip = address
+                  device.config.port = service.port
+                  device.setOpts(address, service.port)
+
+              if not @allreadyInConfig
                 if service.txt.md?
-                  if service.txt.fn?
-                    newName = service.txt.md + " - " + service.txt.fn
-                    newId = (service.txt.md).replace(/\s+/g, '_') + "_" + service.txt.fn
+                  if friendlyName?
+                    newName = service.txt.md + " - " + friendlyName
+                    newId = checkId #(service.txt.md).replace(/\s+/g, '_') + "_" + friendlyName
                   else
                     newName = service.txt.md + "_" + address.split('.').join("") + " - " + service.port
                     newId = (service.txt.md).replace(/\s+/g, '_') + "_" + address.split('.').join("") + "-" + service.port
                 else
                   newName = "cast " + address.split('.').join("") + " - " + service.port
                   newId = "cast_" + address.split('.').join("") + "-" + service.port
+                #env.logger.debug "New device discovered " + newName
                 config =
-                  id: newId
+                  id: service.txt.id # newId
                   name: newName
                   class: "ChromecastDevice"
                   ip: address
@@ -184,7 +203,9 @@ module.exports = (env) ->
               else
                 env.logger.info "Device already in config"
         )
+        @browser.start()
       )
+      
 
       ipInConfig = (deviceIP, devicePort, cn) =>
         for device in @framework.deviceManager.devicesConfig
@@ -207,8 +228,10 @@ module.exports = (env) ->
       @name = @config.name
 
       if @_destroyed then return
+
       @deviceStatus = off
       @textFilename = @id + "_text.mp3"
+
 
       #
       # Configure attributes
@@ -235,6 +258,9 @@ module.exports = (env) ->
       @ip = @config.ip
       @port = (if @config.port? then @config.port else 8009) # default single device port
       @onlineChecker = () =>
+        if @onlineCheckerTimer?
+          env.logger.debug "Online checker already running"
+          return
         env.logger.debug "Check online status device '#{@id}"
         ping.promise.probe(@ip,{timeout: 2})
         .then((host)=>
@@ -250,7 +276,7 @@ module.exports = (env) ->
             @deviceStatus = off
             @setAttr("status","offline")
             env.logger.debug "Device '#{@id}' offline"
-            @onlineCheckerTimer = setTimeout(@onlineChecker,60000)
+            @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
         )
       @onlineChecker()
 
@@ -287,29 +313,42 @@ module.exports = (env) ->
       @devicePlayingUrl = ""
       @deviceReplayingUrl = ""
 
+      if @config.playInit or !(@config.playInit?)
+        @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume)
+        .then(()=>
+        ).catch((err)=>
+          env.logger.debug "playAnnouncement error handled"
+        )
+
+
       #
-      # The chromecast setup
+      # The chromecast status listener setup
       #
-      @client = null
-      @gaDevice = new Device()
-      @gaDevice.on 'error', (err) =>
+      @statusDevice = new Device()
+      @statusDevice.on 'error', (err) =>
         @deviceStatus = off
-        env.logger.debug "Error in gaDevice " + err.message
-        @destroy()
-        @onlineChecker()
+        if err.message.indexOf("ECONNREFUSED")
+          env.logger.debug "Network config probably changed, please start discovery"
+          #@framework.deviceManager.discoverDevices(15000)
+        env.logger.debug "Error in statusDevice " + err.message
+        try
+          @destroy()
+        catch err
+          env.logger.debug "GaDevice error on destroy solved"
+        @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
 
       # subscribe to inner client
-      @gaDevice.client.on 'close', () =>
+      @statusDevice.client.on 'close', () =>
         @deviceStatus = off
         env.logger.debug "Client Client closing" 
-        @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+        @onlineCheckerTimer = setTimeout(@onlineChecker,10000)
 
       opts =
         host: @ip
         port: @port
-      env.logger.debug "Connecting to gaDevice with opts: " + opts
+      env.logger.debug "Connecting to statusDevice with opts: " + JSON.stringify(opts,null,2)
 
-      @gaDevice.connect(opts, (err) =>
+      @statusDevice.connect(opts, (err) =>
         if err?
           env.logger.debug "Connect error " + err.message
           return
@@ -323,7 +362,7 @@ module.exports = (env) ->
             env.logger.debug "playAnnouncement error handled"
           )
 
-        @gaDevice.on 'status', (status) =>
+        @statusDevice.on 'status', (status) =>
           #
           # get volume
           #
@@ -332,7 +371,7 @@ module.exports = (env) ->
             @mainVolume = @devicePlayingVolume
             env.logger.debug "New mainvolume '" + @devicePlayingVolume + "'' in device '" + @id + "'"
 
-          @gaDevice.getSessions((err,sessions) =>
+          @statusDevice.getSessions((err,sessions) =>
             if err?
               env.logger.error "Error getSessions " + err.message
               return
@@ -342,12 +381,12 @@ module.exports = (env) ->
                 #
                 # Join the chromecast info device
                 #
-                @gaDevice.join(firstSession, DefaultMediaReceiver, (err, app) =>
+                @statusDevice.join(firstSession, DefaultMediaReceiver, (err, app) =>
                   if err?
                     env.logger.error "Join error " + err.message
                     return
-                  @_deviceInfo = app
-                  @_deviceInfo.on 'status' , (status) =>
+                  #@_deviceInfo = app
+                  app.on 'status' , (status) =>
                     title = status?.media?.metadata?.title
                     contentId = status?.media?.contentId
                     if status.playerState is "IDLE" and @devicePlaying
@@ -371,6 +410,10 @@ module.exports = (env) ->
           )
       )
 
+    setOpts: (ip, port) =>
+      @ip = ip
+      @port = port
+
     setAttr: (attr, _status) =>
       @attributeValues[attr] = _status
       @emit attr, @attributeValues[attr]
@@ -378,130 +421,183 @@ module.exports = (env) ->
 
     playAnnouncement: (_url, _vol, _duration) =>
       return new Promise((resolve,reject) =>
-        unless @gaDevice?
-          reject("Device not online")
-        if @devicePlaying
-          @deviceReplaying = true
-          @annoucement = true
-          @deviceReplayingUrl = @devicePlayingUrl
-          @deviceReplayingInfo = @devicePlayingInfo
-          @deviceReplayingVolume = @devicePlayingVolume
-          @deviceReplayingMedia = @devicePlayingMedia
-          env.logger.debug "Replaying values set"
-        defaultMetadata =
-          metadataType: 0
-          title: "Pimatic Announcement"
-          #posterUrl: "https://avatars0.githubusercontent.com/u/6502361?v=3&s=400"
-          #images: [
-          #  { url: "https://avatars0.githubusercontent.com/u/6502361?v=3&s=20" }
-          #],
+        #unless @gaDevice?
+        #  reject("Device not online")
+        #  return
 
-        media =
-          contentId : _url
-          contentType: getContentType(_url)
-          streamType: 'BUFFERED'
-          #metadata: defaultMetadata
+        device = new Device()
 
-        try
-          @gaDevice.launch(DefaultMediaReceiver, (err, app) =>
-            if err?
-              env.logger.debug "Launch error " + err.message
-              reject("Launch error")
-              return
-            unless app?
-              reject("Launch error app is undefined")
-              return
-            app.on 'status', (status) =>
-              if status.playerState is "IDLE" and status.idleReason is "FINISHED"
-                @stopCasting()
-                .then(() =>
-                  env.logger.debug "Casting stopped"
-                  if @deviceReplaying
-                    @restartPlaying(@deviceReplayingUrl, @deviceReplayingVolume)
-                    .then(()=>
-                      env.logger.debug "Media restarted: " + @deviceReplayingUrl
-                      resolve()
-                    ).catch((err)=>
-                      env.logger.error "Error startReplaying " + err
-                    )
-                ).catch((err) =>
-                  env.logger.error "Error in stopping casting: " + err
+        device.on 'error', (err) =>
+          @deviceStatus = off
+          if err.message.indexOf("ECONNREFUSED")
+            env.logger.debug "Network config probably changed, please start discovery"
+            #@framework.deviceManager.discoverDevices(15000)
+          env.logger.debug "Error in gaDevice " + err.message
+          #try
+          #  @destroy()
+          #catch err
+          #  env.logger.debug "GaDevice error on destroy solved"
+          @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+
+        # subscribe to inner client
+        device.client.on 'close', () =>
+          @deviceStatus = off
+          env.logger.debug "Client Client closing" 
+          @onlineCheckerTimer = setTimeout(@onlineChecker,10000)
+
+        opts =
+          host: @ip
+          port: @port
+
+        env.logger.debug "Connecting to gaDevice with opts: " + JSON.stringify(opts,null,2)
+        device.connect(opts, (err) =>
+          if err?
+            env.logger.debug "Connect error " + err.message
+            return
+          @deviceStatus = on
+          env.logger.info "PlayAnnouncement device connected"
+          if @devicePlaying
+            @deviceReplaying = true
+            @annoucement = true
+            @deviceReplayingUrl = @devicePlayingUrl
+            @deviceReplayingInfo = @devicePlayingInfo
+            @deviceReplayingVolume = @devicePlayingVolume
+            @deviceReplayingMedia = @devicePlayingMedia
+            env.logger.debug "Replaying values set"
+          defaultMetadata =
+            metadataType: 0
+            title: "Pimatic Announcement"
+            #posterUrl: "https://avatars0.githubusercontent.com/u/6502361?v=3&s=400"
+            #images: [
+            #  { url: "https://avatars0.githubusercontent.com/u/6502361?v=3&s=20" }
+            #],
+
+          media =
+            contentId : _url
+            contentType: getContentType(_url)
+            streamType: 'BUFFERED'
+            #metadata: defaultMetadata
+
+          try
+            device.launch(DefaultMediaReceiver, (err, app) =>
+              if err?
+                env.logger.debug "Launch error " + err.message
+                reject("Launch error")
+                return
+              unless app?
+                reject("Launch error app is undefined")
+                return
+              app.on 'status', (status) =>
+                #env.logger.info "STATUS: " + JSON.stringify(status,null,2)
+                if status.playerState is "IDLE" and status.idleReason is "FINISHED"
+                  @stopCasting()
+                  .then(() =>
+                    env.logger.debug "Casting stopped"
+                    if @deviceReplaying
+                      @restartPlaying(device, @deviceReplayingUrl, @deviceReplayingVolume)
+                      .then(()=>
+                        env.logger.debug "Media restarted: " + @deviceReplayingUrl
+                        device.close()
+                        .then(()=>
+                          resolve()
+                        ).catch((err) =>
+                          env.logger.error "Error in closing announcement device " + err
+                        )
+                      ).catch((err)=>
+                        env.logger.error "Error startReplaying " + err
+                        reject()
+                        return
+                      )
+                  ).catch((err) =>
+                    env.logger.error "Error in stopping casting: " + err
+                    reject()
+                    return
+                  )
+              @_devicePlayer = app
+              @setVolume(device, _vol)
+              .then(()=>
+                app.load(media, {autoplay:true}, (err,status) =>
+                  if err?
+                    env.logger.error 'Error in playing announcement: ' + err
+                    reject(err)
+                    return
+                  @annoucement = true
+                  env.logger.debug "Playing annoucement on device '" + @id + "' with volume " + _vol
+                  if _duration? or _duration > 0
+                    # set durationTimer
+                    setTimeout(=>
+                      @stopCasting()
+                      .then(()=>
+                        env.logger.debug "Annoucement image auto stopped"
+                      ).catch((err)=> env.logger.debug "Error in Annouvement imgage auto stop")
+                    ,_duration * 1000)
                 )
-            @_devicePlayer = app
-            @setVolume(_vol)
-            .then(()=>
-              app.load(media, {autoplay:true}, (err,status) =>
-                if err?
-                  env.logger.error 'Error in playing announcement: ' + err
-                  reject(err)
-                  return
-                @annoucement = true
-                env.logger.debug "Playing annoucement on device '" + @id + "' with volume " + _vol
-                if _duration? or _duration > 0
-                  # set durationTimer
-                  setTimeout(=>
-                    @stopCasting()
-                    env.logger.debug "Annoucement image auto stopped"
-                  ,_duration * 1000)
               )
             )
-          )
-        catch err
-          env.logger.debug "Error lauching client not ready, " + err.message
-
+          catch err
+            env.logger.debug "Error lauching client not ready, " + err.message
+            reject(err)
+            return
+        )
       )
 
     stopCasting: () =>
-      @client = new Device()
-      @client.on 'error', (err) =>
-        env.logger.error "Error " + err
-      @app = DefaultMediaReceiver
-      @client.getAppAvailabilityAsync = util.promisify(@client.getAppAvailability)
-      @client.getSessionsAsync = util.promisify(@client.getSessions)
-      @client.joinAsync = util.promisify(@client.join)
-      @client.launchAsync = util.promisify(@client.launch)
-      @client.stopAsync = util.promisify(@client.stop)
-      @client.connectAsync = (connectOptions) =>
-        new Promise((resolve) => @client.connect(connectOptions, resolve))
-      opts =
-        host: @ip
-        port: @port
+      return new Promise((resolve,reject) =>
+        client = new Device()
+        client.on 'error', (err) =>
+          env.logger.error "Error " + err
+        app = DefaultMediaReceiver
+        client.getAppAvailabilityAsync = util.promisify(client.getAppAvailability)
+        client.getSessionsAsync = util.promisify(client.getSessions)
+        client.joinAsync = util.promisify(client.join)
+        client.launchAsync = util.promisify(client.launch)
+        client.stopAsync = util.promisify(client.stop)
+        client.connectAsync = (connectOptions) =>
+          new Promise((resolve) => client.connect(connectOptions, resolve))
+        opts =
+          host: @ip
+          port: @port
 
-      try
-        @client.connectAsync(opts)
-        .then(() =>
-          return @client.getAppAvailabilityAsync(@app.APP_ID)
-        )
-        .then((availability) =>
-          return @client.getSessionsAsync()
-        )
-        .then((sessions) =>
-          activeSession = sessions.find((session) => session.appId is @app.APP_ID)
-          if activeSession
-            return @client.joinAsync(activeSession, DefaultMediaReceiver)
-          else
-            return @client.launchAsync(DefaultMediaReceiver)
-        )
-        .then((receiver) =>
-          return @client.stopAsync(receiver)
-        )
-        .finally(() =>
-          return @client.close()
-        )
-        .catch((err) =>
-          env.logger.debug "Error in stop casting " + err
-        )
-      catch err
-        env.logger.error "Error in stopCasting " + err
+        try
+          client.connectAsync(opts)
+          .then(() =>
+            return client.getAppAvailabilityAsync(app.APP_ID)
+          )
+          .then((availability) =>
+            return client.getSessionsAsync()
+          )
+          .then((sessions) =>
+            activeSession = sessions.find((session) => session.appId is app.APP_ID)
+            if activeSession
+              return client.joinAsync(activeSession, DefaultMediaReceiver)
+            else
+              return client.launchAsync(DefaultMediaReceiver)
+          )
+          .then((receiver) =>
+            return client.stopAsync(receiver)
+          )
+          .finally(() =>
+            client.close()
+            resolve()
+            return
+          )
+          .catch((err) =>
+            env.logger.debug "Error in stop casting " + err
+            reject()
+          )
+        catch err
+          env.logger.error "Error in stopCasting " + err
+          reject()
+      )
 
-    restartPlaying: (_url, _vol) =>
+    restartPlaying: (device, _url, _vol) =>
       return new Promise((resolve,reject) =>
         try
           #media =
           #  contentId : _url
           #  contentType: getContentType(_url)
           #  streamType: 'BUFFERED'
-          @gaDevice.launch(DefaultMediaReceiver, (err, app) =>
+          device.launch(DefaultMediaReceiver, (err, app) =>
             if err?
               env.logger.error "Launch error " + err.message
               return
@@ -525,7 +621,7 @@ module.exports = (env) ->
           env.logger.error "Error restarting playing " + err
       )
 
-    setVolume: (vol) =>
+    setVolume: (device, vol) =>
       return new Promise((resolve,reject) =>
         unless vol?
           reject()
@@ -536,7 +632,7 @@ module.exports = (env) ->
         env.logger.debug "Setting volume to  " + vol
         data = {level: vol}
         env.logger.debug "Setvolume data: " + JSON.stringify(data,null,2)
-        @gaDevice.setVolume(data, (err) =>
+        device.setVolume(data, (err) =>
           if err?
             reject()
           resolve()
@@ -544,15 +640,18 @@ module.exports = (env) ->
       )
 
     destroy: ->
-      try
-        if @gaDevice?
-          @gaDevice.close()
-        #if @client?
-        #  @client.close()
-      catch err
-        env.logger.error "Destroyed " + err
-      clearTimeout(@onlineCheckerTimer)
-      clearTimeout(@startupTimer)
+      @stopCasting()
+      .then(()=>
+        try
+          if @statusDevice?
+            @statusDevice.close()
+        catch err
+          env.logger.debug "Destroy error handled " + err
+        clearTimeout(@onlineCheckerTimer)
+        clearTimeout(@startupTimer)
+      ).catch((err)=>
+        env.logger.debug "Error in Destroy stopcasting " + err
+      )
       super()
 
   class SonosDevice extends env.devices.Device
@@ -604,9 +703,12 @@ module.exports = (env) ->
             @deviceStatus = off
             @setAttr("status","offline")
             env.logger.debug "Device '#{@id}' offline"
-            @onlineCheckerTimer = setTimeout(@onlineChecker,60000)
+            @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
         )
-      @onlineChecker()
+      if @onlineCheckerTimer?
+        clearTimeout(@onlineChecker)
+        @onlineChecker()
+
 
 
       super()
@@ -1012,6 +1114,7 @@ module.exports = (env) ->
         return __("would save file \"%s\"", @textIn)
       else
         if @soundsDevice.deviceStatus is off
+          @soundsDevice.onlineChecker()
           if @soundType is "text" or @soundType is "file"
             return __("Rule not executed device offline")
           else
