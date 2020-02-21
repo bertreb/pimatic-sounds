@@ -74,6 +74,7 @@ module.exports = (env) ->
         #if bonjour?
         #  bonjour.destroy()
         env.logger.debug "Stopping plugin, closing server"
+        process.exit()
 
       pluginConfigDef = require './pimatic-sounds-config-schema'
       @configProperties = pluginConfigDef.properties
@@ -252,12 +253,16 @@ module.exports = (env) ->
       #
       @ip = @config.ip
       @port = (if @config.port? then @config.port else 8009) # default single device port
+      @heatbeatTime = 600000 # 10 minutes heartbeat
       @onlineChecker = () =>
-        clearTimeout(@onlineCheckerTimer)
-        env.logger.debug "Check online status device '#{@id}"
+        env.logger.debug "Heartbeat check online status device '#{@id}"
         ping.promise.probe(@ip,{timeout: 2})
         .then((host)=>
           if host.alive
+            if @deviceStatus is on
+              # status checked and device is online no action, schedule next heartbeat
+              @onlineCheckerTimer = setTimeout(@onlineChecker,@heatbeatTime)
+              return
             startupTime = () =>
               env.logger.debug "Device '#{@id}' is online"
               @deviceStatus = on
@@ -269,7 +274,7 @@ module.exports = (env) ->
             @deviceStatus = off
             @setAttr("status","offline")
             env.logger.debug "Device '#{@id}' offline"
-            @onlineCheckerTimer = setTimeout(@onlineChecker,600000)
+          @onlineCheckerTimer = setTimeout(@onlineChecker,@heatbeatTime)
         )
       @framework.on 'after init', () =>
         @onlineChecker()
@@ -314,12 +319,10 @@ module.exports = (env) ->
       #
       statusDevice = new Device()
       statusDevice.on 'error', (err) =>
-        @deviceStatus = off
         if err.message.indexOf("ECONNREFUSED")
-          env.logger.debug "Network config probably changed, please start discovery"
+          env.logger.debug "Network config probably changed or device is offline"
         else if err.message.indexOf("ETIMEDOUT")
           env.logger.debug "StatusDevice offline"
-          @onlineCheckerTimer = setTimeout(@onlineChecker,60000)
         else
           env.logger.debug "Error in status device " + err.message
 
@@ -327,7 +330,6 @@ module.exports = (env) ->
       statusDevice.client.on 'close', () =>
         @deviceStatus = off
         env.logger.debug "StatusDevice Client Client closing" 
-        #@onlineCheckerTimer = setTimeout(@onlineChecker,10000)
 
       opts =
         host: @ip
@@ -356,7 +358,7 @@ module.exports = (env) ->
           if _status.volume?.level?
             @devicePlayingVolume = _status.volume.level
             @mainVolume = _status.volume.level
-            env.logger.debug "New mainvolume '" + @devicePlayingVolume + "'' in device '" + @id + "'"
+            #env.logger.debug "New mainvolume '" + @devicePlayingVolume + "'' in device '" + @id + "'"
 
           if statusDevice?
             statusDevice.getSessions((err,sessions) =>
@@ -435,12 +437,10 @@ module.exports = (env) ->
         device = new Device()
 
         device.on 'error', (err) =>
-          @deviceStatus = off
           if err.message.indexOf("ECONNREFUSED")
-            env.logger.debug "Network config probably changed, please start discovery"
+            env.logger.debug "Network config probably changed or device is offline"
           else if err.message.indexOf("ETIMEDOUT")
             env.logger.debug "PlayAnnouncementDevice offline"
-            @onlineCheckerTimer = setTimeout(@onlineChecker,60000)
           else
             env.logger.debug "Error in playAnnouncementDevice " + err.message
 
@@ -448,7 +448,6 @@ module.exports = (env) ->
         device.client.on 'close', () =>
           @deviceStatus = off
           env.logger.debug "PlayAnnouncement Client Client closing" 
-          #@onlineCheckerTimer = setTimeout(@onlineChecker,15000)
 
         opts =
           host: @ip
@@ -612,20 +611,14 @@ module.exports = (env) ->
       return new Promise((resolve,reject) =>
         device = new Device()
         device.on 'error', (err) =>
-          @deviceStatus = off
-          if err.message.indexOf("ECONNREFUSED")
-            env.logger.debug "Network config probably changed, please start discovery"
-          else if err.message.indexOf("ETIMEDOUT")
+          if err.message.indexOf("ETIMEDOUT")
             env.logger.debug "ReplayDevice offline"
-            #@onlineCheckerTimer = setTimeout(@onlineChecker,60000)
           else
             env.logger.debug "Error in ReplayDevice " + err.message
 
         # subscribe to inner client
         device.client.on 'close', () =>
-          @deviceStatus = off
           env.logger.debug "ReplayDevice Client Client closing" 
-          #@onlineCheckerTimer = setTimeout(@onlineChecker,10000)
 
         opts =
           host: @ip
