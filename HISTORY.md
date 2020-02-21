@@ -48,6 +48,6 @@
 	* release for testing NOT FOR PRODUCTION
 * 20200221, v0.0.28
 	* set discovery to manual only via Pimatic Gui
-	* after connection loss a reconnect try will take place every 10 minutes
+	* after connection loss a reconnect try will be in 10 minutes
 	* removed the separate volume setting option
 	* several optimalizations
