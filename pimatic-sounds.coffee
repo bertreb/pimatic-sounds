@@ -152,7 +152,11 @@ module.exports = (env) ->
               class: "SonosDevice"
               ip: device.host
             @framework.deviceManager.discoveredDevice( "pimatic-sounds", config.name, config)
-        )      
+        )
+        discoverChromecastDevices()
+      )
+
+      discoverChromecastDevices = () =>
         @browser = bonjour.find({type: 'googlecast'}, (service) =>
           for address in service.addresses
             if address.split('.').length == 4
@@ -163,10 +167,7 @@ module.exports = (env) ->
               device = @framework.deviceManager.getDeviceById(service.txt.id)
               if device?
                 @allreadyInConfig = true
-                #@initSounds = false
-                #env.logger.info "device.config " + JSON.stringify(device.config,null,2)
-                #env.logger.info "service.name " + service.name
-                #env.logger.info "config.devices " + JSON.stringify(_.find(@framework.config.devices,(d)=> d.id == service.name),null,2)
+                env.logger.info "device '" + device.config.name + "' already in config"
                 if address.indexOf(device.config.ip)<0 or service.port != device.config.port
                   config =
                     id: device.config.id
@@ -175,26 +176,22 @@ module.exports = (env) ->
                     class: device.config.class
                     port: service.port
                     playInit: device.config.playInit
-                  
-                  #@framework.deviceManager.updateDeviceByConfig(config)
-                  device.config.ip = address
-                  device.config.port = service.port
+                  env.logger.debug "device '" + device.config.name + "' ip and port updated"
                   device.setOpts(address, service.port)
 
               if not @allreadyInConfig
                 if service.txt.md?
                   if friendlyName?
                     newName = service.txt.md + " - " + friendlyName
-                    newId = checkId #(service.txt.md).replace(/\s+/g, '_') + "_" + friendlyName
+                    newId = checkId
                   else
                     newName = service.txt.md + "_" + address.split('.').join("") + " - " + service.port
                     newId = (service.txt.md).replace(/\s+/g, '_') + "_" + address.split('.').join("") + "-" + service.port
                 else
                   newName = "cast " + address.split('.').join("") + " - " + service.port
                   newId = "cast_" + address.split('.').join("") + "-" + service.port
-                #env.logger.debug "New device discovered " + newName
                 config =
-                  id: service.txt.id # newId
+                  id: service.txt.id
                   name: newName
                   class: "ChromecastDevice"
                   ip: address
@@ -203,9 +200,7 @@ module.exports = (env) ->
               else
                 env.logger.info "Device already in config"
         )
-        @browser.start()
-      )
-      
+
 
       ipInConfig = (deviceIP, devicePort, cn) =>
         for device in @framework.deviceManager.devicesConfig
@@ -213,10 +208,10 @@ module.exports = (env) ->
             if ((device.ip).indexOf(String deviceIP) >= 0) and cn.indexOf(device.class)>=0
               if device.port?
                 if Number device.port == Number devicePort
-                  env.logger.info "device " + deviceIP + " (" + cn + ") already in config"
+                  #env.logger.info "device '" + device.name + "' already in config"
                   return true
               else
-                env.logger.info "device " + deviceIP + " (" + cn + ") already in config"
+                #env.logger.info "device '" + device.name + "' already in config"
                 return true
         return false
 
@@ -274,9 +269,10 @@ module.exports = (env) ->
             @deviceStatus = off
             @setAttr("status","offline")
             env.logger.debug "Device '#{@id}' offline"
-            @onlineCheckerTimer = setTimeout(@onlineChecker,30000)
+            @onlineCheckerTimer = setTimeout(@onlineChecker,600000)
         )
-      @onlineChecker()
+      @framework.on 'after init', () =>
+        @onlineChecker()
 
       super()
 
@@ -288,55 +284,49 @@ module.exports = (env) ->
       @language = @plugin.config.language ? "en"
       @gtts = require('node-gtts')(@language)
 
-      @mainVolume = 0.40
+      @mainVolume = 0.20
       @initVolume = 0.40
 
       @serverPort = @plugin.serverPort
       @serverIp = @plugin.serverIp
       @soundsDir = @plugin.soundsDir
-      baseUrl = "http://" + @serverIp + ":" + @serverPort
+      @baseUrl = "http://" + @serverIp + ":" + @serverPort
       @textFilename = @id + "_text.mp3"
 
       @media =
-        url: baseUrl + "/" + @textFilename
-        base: baseUrl
+        url: @baseUrl + "/" + @textFilename
+        base: @baseUrl
         filename: @textFilename
 
       #
       # The sounds states setup
       #
-      @announcement = false
+      @currentDeviceState = "idle"
+      #@announcement = false
       @devicePlaying = false
       @deviceReplaying = false
       @devicePlayingUrl = ""
       @deviceReplayingUrl = ""
-
-      if @config.playInit or !(@config.playInit?)
-        @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume)
-        .then(()=>
-        ).catch((err)=>
-          env.logger.debug "playAnnouncement error handled"
-        )
-
+      @devicePlayingVolume = @mainVolume
 
       #
       # The chromecast status listener setup
       #
-      @statusDevice = new Device()
-      @statusDevice.on 'error', (err) =>
+      statusDevice = new Device()
+      statusDevice.on 'error', (err) =>
         @deviceStatus = off
         if err.message.indexOf("ECONNREFUSED")
           env.logger.debug "Network config probably changed, please start discovery"
         else if err.message.indexOf("ETIMEDOUT")
-          env.logger.debug "Device offline"
-          @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+          env.logger.debug "StatusDevice offline"
+          @onlineCheckerTimer = setTimeout(@onlineChecker,60000)
         else
           env.logger.debug "Error in status device " + err.message
 
       # subscribe to inner client
-      @statusDevice.client.on 'close', () =>
+      statusDevice.client.on 'close', () =>
         @deviceStatus = off
-        env.logger.debug "Client Client closing" 
+        env.logger.debug "StatusDevice Client Client closing" 
         #@onlineCheckerTimer = setTimeout(@onlineChecker,10000)
 
       opts =
@@ -344,7 +334,7 @@ module.exports = (env) ->
         port: @port
       env.logger.debug "Connecting to statusDevice with opts: " + JSON.stringify(opts,null,2)
 
-      @statusDevice.connect(opts, (err) =>
+      statusDevice.connect(opts, (err) =>
         if err?
           env.logger.debug "Connect error " + err.message
           return
@@ -352,23 +342,24 @@ module.exports = (env) ->
         env.logger.info "Device connected"
 
         if @config.playInit or !(@config.playInit?)
-          @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume)
+          @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume, "init sounds")
           .then(()=>
           ).catch((err)=>
             env.logger.debug "playAnnouncement error handled"
           )
 
-        @statusDevice.on 'status', (status) =>
+        statusDevice.on 'status', (_status) =>
+          
           #
           # get volume
           #
-          if status.volume?.level?
-            @devicePlayingVolume = status.volume.level
-            @mainVolume = @devicePlayingVolume
+          if _status.volume?.level?
+            @devicePlayingVolume = _status.volume.level
+            @mainVolume = _status.volume.level
             env.logger.debug "New mainvolume '" + @devicePlayingVolume + "'' in device '" + @id + "'"
 
-          if @statusDevice?
-            @statusDevice.getSessions((err,sessions) =>
+          if statusDevice?
+            statusDevice.getSessions((err,sessions) =>
               if err?
                 env.logger.error "Error getSessions " + err.message
                 return
@@ -378,31 +369,42 @@ module.exports = (env) ->
                   #
                   # Join the chromecast info device
                   #
-                  @statusDevice.join(firstSession, DefaultMediaReceiver, (err, app) =>
+                  lastPlayerState = ""
+                  statusDevice.join(firstSession, DefaultMediaReceiver, (err, app) =>
                     if err?
                       env.logger.error "Join error " + err.message
                       return
-                    #@_deviceInfo = app
                     app.on 'status' , (status) =>
                       title = status?.media?.metadata?.title
                       contentId = status?.media?.contentId
-                      if status.playerState is "IDLE" and @devicePlaying
+                      unless lastPlayerState is status.playerState
+                        env.logger.debug "status.playerState: " + status.playerState
+                        lastPlayerState = status.playerState
+                      if status.playerState is "PLAYING"
+                        if contentId
+                          if (status.media.contentId).startsWith(@baseUrl)
+                            #is announcement
+                            @setAttr "status", "annoucement"
+                            @setAttr "info", @announcementText
+                          else
+                            @devicePlaying = true
+                            if (status.media.contentId).startsWith("http")
+                              @devicePlayingUrl = status.media.contentId
+                            @devicePlayingInfo = (if status?.media?.metadata?.title then status.media.metadata.title else "")
+                            @attributes["info"].label = String @devicePlayingInfo
+                            if @devicePlayingInfo.length > 30
+                              @devicePlayingInfo = ((@devicePlayingInfo.substr(0,30)) + " ...")
+                            @devicePlayingMedia = status.media
+                            @setAttr "status", "playing"
+                            @setAttr "info", @devicePlayingInfo
+                      if status.playerState is "IDLE" and status.idleReason is "FINISHED"
                         @devicePlaying = false
                         @setAttr "status", "idle"
                         @setAttr "info", ""
-                      else if status.playerState is "PLAYING" and not @devicePlaying
-                        @devicePlaying = true
-                        if contentId
-                          if (status.media.contentId).startsWith("http")
-                            @devicePlayingUrl = status.media.contentId
-                        @devicePlayingInfo = (if status?.media?.metadata?.artist then status.media.metadata.artist else "")
-                        @devicePlayingMedia = status.media
-                        if @annoucement
-                          @setAttr "status", "announcement"
-                          @setAttr "info", @devicePlayingUrl
-                        else
-                          @setAttr "status", "playing"
-                          @setAttr "info", @devicePlayingInfo
+                      if status.playerState is "PAUSED"
+                        @devicePlaying = false
+                        @setAttr "status", "paused"
+                        #@setAttr "info", ""
                   )
             )
       )
@@ -412,12 +414,15 @@ module.exports = (env) ->
       @port = port
 
     setAttr: (attr, _status) =>
-      @attributeValues[attr] = _status
-      @emit attr, @attributeValues[attr]
-      env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
+      unless @attributeValues[attr] is _status
+        @attributeValues[attr] = _status
+        @emit attr, @attributeValues[attr]
+        env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
 
-    playAnnouncement: (_url, _vol, _duration) =>
+    playAnnouncement: (_url, _vol, _text, _duration) =>
       return new Promise((resolve,reject) =>
+
+        #@announcement = true
         #unless @gaDevice?
         #  reject("Device not online")
         #  return
@@ -427,38 +432,41 @@ module.exports = (env) ->
         #).catch((err) =>
         #  env.logger.debug "Nothing to stop on start of playAnnouncement " + err.message
         #)
-        @device = new Device()
+        device = new Device()
 
-        @device.on 'error', (err) =>
+        device.on 'error', (err) =>
           @deviceStatus = off
           if err.message.indexOf("ECONNREFUSED")
             env.logger.debug "Network config probably changed, please start discovery"
           else if err.message.indexOf("ETIMEDOUT")
-            env.logger.debug "Device offline"
-            @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+            env.logger.debug "PlayAnnouncementDevice offline"
+            @onlineCheckerTimer = setTimeout(@onlineChecker,60000)
           else
-            env.logger.debug "Error in annauncement device " + err.message
+            env.logger.debug "Error in playAnnouncementDevice " + err.message
 
         # subscribe to inner client
-        @device.client.on 'close', () =>
+        device.client.on 'close', () =>
           @deviceStatus = off
-          env.logger.debug "Client Client closing" 
-          @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+          env.logger.debug "PlayAnnouncement Client Client closing" 
+          #@onlineCheckerTimer = setTimeout(@onlineChecker,15000)
 
         opts =
           host: @ip
           port: @port
 
         env.logger.debug "Connecting to gaDevice with opts: " + JSON.stringify(opts,null,2)
-        @device.connect(opts, (err) =>
+        device.connect(opts, (err) =>
           if err?
             env.logger.debug "Connect error " + err.message
             return
           @deviceStatus = on
-          env.logger.info "PlayAnnouncement device connected"
+
+          #@setAttr "status", "annoucement"
+          if _text?
+            @setAnnoucement(_text)
+          env.logger.info "PlayAnnouncement device connected, @devicePlaying: " + @devicePlaying
           if @devicePlaying
             @deviceReplaying = true
-            @annoucement = true
             @deviceReplayingUrl = @devicePlayingUrl
             @deviceReplayingInfo = @devicePlayingInfo
             @deviceReplayingVolume = @devicePlayingVolume
@@ -471,15 +479,14 @@ module.exports = (env) ->
             #images: [
             #  { url: "https://avatars0.githubusercontent.com/u/6502361?v=3&s=20" }
             #],
-
           media =
             contentId : _url
             contentType: getContentType(_url)
             streamType: 'BUFFERED'
-            #metadata: defaultMetadata
+            metadata: defaultMetadata
 
           try
-            @device.launch(DefaultMediaReceiver, (err, app) =>
+            device.launch(DefaultMediaReceiver, (err, app) =>
               if err?
                 env.logger.debug "Launch error " + err.message
                 reject("Launch error")
@@ -490,39 +497,49 @@ module.exports = (env) ->
               app.on 'status', (status) =>
                 #env.logger.info "STATUS: " + JSON.stringify(status,null,2)
                 if status.playerState is "IDLE" and status.idleReason is "FINISHED"
+                  #@announcement = false
+                  #@currentDeviceState = "idle"
+                  @setAttr "status", "idle"
+                  @setAttr "info", ""
                   @stopCasting()
                   .then(() =>
                     env.logger.debug "Casting stopped"
                     if @deviceReplaying
+                      env.logger.debug "@deviceReplayingUrl: " + @deviceReplayingUrl + ", @deviceReplayingVolume " + @deviceReplayingVolume
+                      @announcement = false
                       @restartPlaying(@deviceReplayingUrl, @deviceReplayingVolume)
                       .then(()=>
                         env.logger.debug "Media restarted: " + @deviceReplayingUrl
-                        @device.close()
+                        #@device.close()
                         #.then(()=>
                         #  resolve()
                         #).catch((err) =>
                         #  env.logger.error "Error in closing announcement device " + err
                         #)
+                        resolve()
+                        return
                       ).catch((err)=>
                         env.logger.error "Error startReplaying " + err
+                        @announcement = false
                         reject()
                         return
                       )
                   ).catch((err) =>
                     env.logger.error "Error in stopping casting: " + err
+                    @announcement = false
                     reject()
                     return
                   )
               #@_devicePlayer = app
-              @setVolume(@device, _vol)
+              @setVolume(device, _vol)
               .then(()=>
                 app.load(media, {autoplay:true}, (err,status) =>
                   if err?
-                    env.logger.error 'Error in playing announcement: ' + err
+                    env.logger.debug 'Error handled in playing announcement: ' + err
                     reject(err)
                     return
-                  @annoucement = true
-                  env.logger.debug "Playing annoucement on device '" + @id + "' with volume " + _vol
+                  @announcement = false
+                  env.logger.debug "Playing announcement on device '" + @id + "' with volume " + _vol
                   if _duration? or _duration > 0
                     # set durationTimer
                     setTimeout(=>
@@ -536,6 +553,7 @@ module.exports = (env) ->
             )
           catch err
             env.logger.debug "Error lauching client not ready, " + err.message
+            @announcement = false
             reject(err)
             return
         )
@@ -597,27 +615,36 @@ module.exports = (env) ->
           @deviceStatus = off
           if err.message.indexOf("ECONNREFUSED")
             env.logger.debug "Network config probably changed, please start discovery"
-            #@framework.deviceManager.discoverDevices(15000)
-          env.logger.debug "Error in gaDevice " + err.message
-          #try
-          #  @destroy()
-          #catch err
-          #  env.logger.debug "GaDevice error on destroy solved"
-          @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+          else if err.message.indexOf("ETIMEDOUT")
+            env.logger.debug "ReplayDevice offline"
+            #@onlineCheckerTimer = setTimeout(@onlineChecker,60000)
+          else
+            env.logger.debug "Error in ReplayDevice " + err.message
 
         # subscribe to inner client
         device.client.on 'close', () =>
           @deviceStatus = off
-          env.logger.debug "Client Client closing" 
-          @onlineCheckerTimer = setTimeout(@onlineChecker,10000)
+          env.logger.debug "ReplayDevice Client Client closing" 
+          #@onlineCheckerTimer = setTimeout(@onlineChecker,10000)
 
         opts =
           host: @ip
           port: @port
-        #media =
-        #  contentId : _url
-        #  contentType: getContentType(_url)
-        #  streamType: 'BUFFERED'
+
+        _media =
+          contentId : _url
+          contentType: getContentType(_url)
+          streamType: 'BUFFERED'
+        if @deviceReplayingMedia?.metadata?.title?
+          defaultMetadata =
+            metadataType: 0
+            title: @deviceReplayingMedia.metadata.title
+            #posterUrl: "https://avatars0.githubusercontent.com/u/6502361?v=3&s=400"
+            #images: [
+            #  { url: "https://avatars0.githubusercontent.com/u/6502361?v=3&s=20" }
+            #],
+          _media["metadata"] = defaultMetadata
+
         device.connect(opts, (err) =>
           if err?
             env.logger.debug "Connect error " + err.message
@@ -630,12 +657,11 @@ module.exports = (env) ->
             #@_devicePlayer = app
             @setVolume(device, _vol)
             .then(()=>
-              app.load(@deviceReplayingMedia, {autoplay:true}, (err,status) =>
+              app.load(_media, {autoplay:true}, (err,status) =>
                 if err?
                   env.logger.error 'Error load replay ' + err
                   reject(err)
                   return
-                @annoucement = false
                 env.logger.debug '(Re)playing ' + _url
                 resolve()
               )
@@ -645,6 +671,9 @@ module.exports = (env) ->
           )
         )
       )
+
+    setAnnoucement: (_announcement) =>
+      @announcementText = _announcement
 
     setVolume: (_device, vol) =>
       return new Promise((resolve,reject) =>
@@ -660,18 +689,18 @@ module.exports = (env) ->
         _device.setVolume(data, (err) =>
           if err?
             reject()
-          resolve(data)
+            return
+          resolve()
         )
-        resolve()
       )
 
     destroy: ->
       @stopCasting()
       .then(()=>
         try
-          if @statusDevice?
-            @statusDevice.close()
-            @statusDevice.removeAllListeners()
+          #if @statusDevice?
+          #  @statusDevice.close()
+          #  @statusDevice.removeAllListeners()
         catch err
           env.logger.debug "Destroy error handled " + err
         clearTimeout(@onlineCheckerTimer)
@@ -730,7 +759,7 @@ module.exports = (env) ->
             @deviceStatus = off
             @setAttr("status","offline")
             env.logger.debug "Device '#{@id}' offline"
-            @onlineCheckerTimer = setTimeout(@onlineChecker,15000)
+            @onlineCheckerTimer = setTimeout(@onlineChecker,600000)
         )
       if @onlineCheckerTimer?
         clearTimeout(@onlineChecker)
@@ -777,7 +806,7 @@ module.exports = (env) ->
       @sonosDevice = new Sonos(@ip)
 
       if @config.playInit or !(@config.playInit?)
-        @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume)
+        @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume, "init sounds")
 
       @sonosDevice.on 'PlayState', (state) =>
         env.logger.debug 'The PlayState changed to ' + state
@@ -790,7 +819,7 @@ module.exports = (env) ->
           )
         if state is "playing" and @announcement
           @setAttr("status","announcement")
-          @setAttr("info","")          
+          @setAttr("info",@announcementText)          
         if state is "stopped"
           @setAttr("status","idle")
           @setAttr("info","")
@@ -807,13 +836,16 @@ module.exports = (env) ->
         env.logger.debug 'Mute changed to ' + isMuted
 
     setAttr: (attr, _status) =>
-      @attributeValues[attr] = _status
-      @emit attr, @attributeValues[attr]
-      env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
+      unless @attributeValues[attr] is _status
+        @attributeValues[attr] = _status
+        @emit attr, @attributeValues[attr]
+        env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
 
-    playAnnouncement: (_url, _vol, _duration) =>
+    playAnnouncement: (_url, _vol, _text, _duration) =>
       return new Promise((resolve,reject) =>
         @announcement = true
+        if _text?
+          @announcementText = _text
         unless @sonosDevice?
           @onlineChecker()
           reject("Device not online")
@@ -823,7 +855,7 @@ module.exports = (env) ->
           volume: _vol
         @sonosDevice.playNotification(media)
         .then((result) =>
-          env.logger.debug "Playing annoucement on device '" + @id + "' with volume " + _vol
+          env.logger.debug "Playing announcement on device '" + @id + "' with volume " + _vol
           resolve()
         ).catch((err)=>
           @deviceStatus = off
@@ -833,6 +865,9 @@ module.exports = (env) ->
           reject(err)
         )
       )
+
+    setAnnoucement: (_announcement) =>
+      @announcementText = _announcement
 
     setVolume: (vol) =>
       return new Promise((resolve,reject) =>
@@ -912,13 +947,13 @@ module.exports = (env) ->
 
       super()
 
-    playAnnouncement: (_url, _vol, _duration) =>
+    playAnnouncement: (_url, _vol, _text) =>
       return new Promise((resolve,reject) =>
         #env.logger.info "@framework.deviceManager.getDeviceById(@id) " + JSON.stringify((@framework.deviceManager.getDeviceById(@id)).config.devices,null,2)
         for _dev in (@framework.deviceManager.getDeviceById(@id)).config.devices
           device = @framework.deviceManager.getDeviceById(_dev.name)
           if device.deviceStatus is on 
-            device.playAnnouncement(_url, Number _vol, _duration)
+            device.playAnnouncement(_url, Number _vol, _text)
             .then(()=>
               env.logger.debug "Groupsdevice initiates announcement on device '" + device.id + "'"
               @setAttr("status","annoucement")
@@ -1060,27 +1095,6 @@ module.exports = (env) ->
           ((m) =>
             return m.match('file ', optional: yes)
               .matchStringWithVars(setFilename)
-          ),
-          ((m) =>
-            return m.match('vol ', optional: yes)
-              .or([
-                ((m) =>
-                  return m.matchVariable(setMainVolumeVar)
-                ),
-                ((m) =>
-                  return m.matchNumber(setMainVolume)
-                )
-                ])
-              .match(' on ')
-              .matchDevice(soundsDevices, (m, d) ->
-                # Already had a match with another device?
-                if soundsDevice? and soundsDevice.id isnt d.id
-                  context?.addError(""""#{input.trim()}" is ambiguous.""")
-                  return
-                soundType = "vol"
-                soundsDevice = d
-                match = m.getFullMatch()
-              )
           )
         ])
         .or([
@@ -1141,7 +1155,6 @@ module.exports = (env) ->
         return __("would save file \"%s\"", @textIn)
       else
         if @soundsDevice.deviceStatus is off
-          @soundsDevice.onlineChecker()
           if @soundType is "text" or @soundType is "file"
             return __("Rule not executed device offline")
           else
@@ -1152,6 +1165,7 @@ module.exports = (env) ->
               @framework.variableManager.evaluateStringExpression(@textIn).then( (strToLog) =>
                 @text = strToLog
                 env.logger.debug "Creating sound file... with text: " + @text
+                @soundsDevice.setAnnoucement(@text)
                 @soundsDevice.gtts.save(@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename, @text, (err) =>
                   if err?
                     return __("\"%s\" was not generated", @text)
@@ -1165,9 +1179,9 @@ module.exports = (env) ->
                       return __("\"%s\" volume variable no value", @text)
                   else
                     newVolume = @volume
-                  @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number newVolume)
+                  @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number newVolume, @text, @duration)
                   .then(()=>
-                    env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + newVolume
+                    env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + newVolume + ", and text " + @text
                     return __("\"%s\" was played ", @text)
                   ).catch((err)=>
                     env.logger.debug "Error in playAnnouncement: " + err
@@ -1195,7 +1209,7 @@ module.exports = (env) ->
                     return __("\"%s\" volume variable no value", @text)
                 else
                   newVolume = @volume
-                @soundsDevice.playAnnouncement(fullFilename, Number newVolume, @duration)
+                @soundsDevice.playAnnouncement(fullFilename, Number newVolume, @text, @duration)
                 .then(()=>
                   env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
                   return __("\"%s\" was played ", @textIn)
@@ -1204,6 +1218,7 @@ module.exports = (env) ->
                   return __("\"%s\" was not played", @textIn)
                 )
               )
+              ###
             when "vol"
               if @volumeVar?
                 newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
@@ -1220,6 +1235,7 @@ module.exports = (env) ->
                   return __("\"%s\" was played but volume was not set", @text)
                 return __("\"%s\" was played with volume set", @text)
               )
+              ###
             else
               env.logger.debug 'error: unknown playtype'
               return __("\"%s\" unknown playtype", @soundType)
