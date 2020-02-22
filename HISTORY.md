@@ -51,3 +51,5 @@
 	* after connection loss a reconnect try will be in 10 minutes
 	* removed the separate volume setting option
 	* several optimalizations
+* 20200222, v0.0.29
+	* bug fix GroupsDevice

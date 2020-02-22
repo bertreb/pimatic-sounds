@@ -938,6 +938,7 @@ module.exports = (env) ->
       @language = @plugin.config.language ? "en"
       @gtts = require('node-gtts')(@language)
 
+
       super()
 
     playAnnouncement: (_url, _vol, _text) =>
@@ -946,7 +947,8 @@ module.exports = (env) ->
         for _dev in (@framework.deviceManager.getDeviceById(@id)).config.devices
           device = @framework.deviceManager.getDeviceById(_dev.name)
           if device.deviceStatus is on 
-            device.playAnnouncement(_url, Number _vol, _text)
+            device.setAnnoucement(@announcementText)
+            device.playAnnouncement(_url, Number _vol, @announcementText)
             .then(()=>
               env.logger.debug "Groupsdevice initiates announcement on device '" + device.id + "'"
               @setAttr("status","annoucement")
@@ -969,6 +971,9 @@ module.exports = (env) ->
       @attributeValues[attr] = _status
       @emit attr, @attributeValues[attr]
       env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
+
+    setAnnoucement: (_announcement) =>
+      @announcementText = _announcement
 
     destroy: ->
       clearTimeout(@announcementTimer)
