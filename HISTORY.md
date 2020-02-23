@@ -53,3 +53,5 @@
 	* several optimalizations
 * 20200222, v0.0.29
 	* bug fix GroupsDevice
+* 20200223, v0.0.30
+	* fix discovery flooding

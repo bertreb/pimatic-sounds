@@ -71,6 +71,7 @@ module.exports = (env) ->
           @server.removeAllListeners()
         if @browser?
           @browser.stop()
+        clearTimeout(@discoveryTimer)
         #if bonjour?
         #  bonjour.destroy()
         env.logger.debug "Stopping plugin, closing server"
@@ -155,6 +156,7 @@ module.exports = (env) ->
             @framework.deviceManager.discoveredDevice( "pimatic-sounds", config.name, config)
         )
         discoverChromecastDevices()
+
       )
 
       discoverChromecastDevices = () =>
@@ -201,6 +203,11 @@ module.exports = (env) ->
               else
                 env.logger.info "Device already in config"
         )
+        @discoveryTimer = setTimeout(=>
+          @browser.stop()
+          env.logger.info "Sounds discovery stopped"
+        , 20000)
+
 
 
       ipInConfig = (deviceIP, devicePort, cn) =>
@@ -1132,7 +1139,7 @@ module.exports = (env) ->
       unless volume?
         volume = @mainVolume
 
-      if match? # m.hadMatch()
+      if m.hadMatch()
         env.logger.debug "Rule matched: '", match, "' and passed to Action handler"
         return {
           token: match
