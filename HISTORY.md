@@ -55,3 +55,5 @@
 	* bug fix GroupsDevice
 * 20200223, v0.0.30
 	* fix discovery flooding
+* 20200224, v0.0.31
+	* move non essential error messages to debug

@@ -133,12 +133,12 @@ module.exports = (env) ->
         configDef: deviceConfigDef.SonosDevice,
         createCallback: (config, lastState) => new SonosDevice(config, lastState, @framework, @)
       })
-      
+
       @framework.deviceManager.registerDeviceClass('GroupDevice', {
         configDef: deviceConfigDef.GroupDevice,
         createCallback: (config, lastState) => new GroupDevice(config, lastState, @framework, @)
       })
-      
+
       @framework.ruleManager.addActionProvider(new SoundsActionProvider(@framework, @soundsAllClasses, @soundsDir))
 
       @framework.deviceManager.on('discover', (eventData) =>
@@ -336,7 +336,7 @@ module.exports = (env) ->
       # subscribe to inner client
       statusDevice.client.on 'close', () =>
         @deviceStatus = off
-        env.logger.debug "StatusDevice Client Client closing" 
+        env.logger.debug "StatusDevice Client Client closing"
 
       opts =
         host: @ip
@@ -358,7 +358,7 @@ module.exports = (env) ->
           )
 
         statusDevice.on 'status', (_status) =>
-          
+
           #
           # get volume
           #
@@ -454,7 +454,7 @@ module.exports = (env) ->
         # subscribe to inner client
         device.client.on 'close', () =>
           @deviceStatus = off
-          env.logger.debug "PlayAnnouncement Client Client closing" 
+          env.logger.debug "PlayAnnouncement Client Client closing"
 
         opts =
           host: @ip
@@ -525,7 +525,7 @@ module.exports = (env) ->
                         resolve()
                         return
                       ).catch((err)=>
-                        env.logger.error "Error startReplaying " + err
+                        env.logger.debug "Error startReplaying " + err
                         @announcement = false
                         reject()
                         return
@@ -625,7 +625,7 @@ module.exports = (env) ->
 
         # subscribe to inner client
         device.client.on 'close', () =>
-          env.logger.debug "ReplayDevice Client Client closing" 
+          env.logger.debug "ReplayDevice Client Client closing"
 
         opts =
           host: @ip
@@ -659,7 +659,7 @@ module.exports = (env) ->
             .then(()=>
               app.load(_media, {autoplay:true}, (err,status) =>
                 if err?
-                  env.logger.error 'Error load replay ' + err
+                  env.logger.debug 'Error load replay ' + err
                   reject(err)
                   return
                 env.logger.debug '(Re)playing ' + _url
@@ -779,13 +779,13 @@ module.exports = (env) ->
 
       @mainVolume = 20
       @initVolume = 40
-      
+
       @serverIp = @plugin.serverIp
       @serverPort = @plugin.serverPort
       @soundsDir = @plugin.soundsDir
       baseUrl = "http://" + @serverIp + ":" + @serverPort
       @textFilename = @id + "_text.mp3"
-      
+
       @media =
         url: baseUrl + "/" + @textFilename
         base: baseUrl
@@ -819,7 +819,7 @@ module.exports = (env) ->
           )
         if state is "playing" and @announcement
           @setAttr("status","announcement")
-          @setAttr("info",@announcementText)          
+          @setAttr("info",@announcementText)
         if state is "stopped"
           @setAttr("status","idle")
           @setAttr("info","")
@@ -953,7 +953,7 @@ module.exports = (env) ->
         #env.logger.info "@framework.deviceManager.getDeviceById(@id) " + JSON.stringify((@framework.deviceManager.getDeviceById(@id)).config.devices,null,2)
         for _dev in (@framework.deviceManager.getDeviceById(@id)).config.devices
           device = @framework.deviceManager.getDeviceById(_dev.name)
-          if device.deviceStatus is on 
+          if device.deviceStatus is on
             device.setAnnoucement(@announcementText)
             device.playAnnouncement(_url, Number _vol, @announcementText)
             .then(()=>
@@ -985,7 +985,7 @@ module.exports = (env) ->
     destroy: ->
       clearTimeout(@announcementTimer)
       super()
-    
+
   class SoundsActionProvider extends env.actions.ActionProvider
 
     constructor: (@framework, @soundsClasses, @dir) ->
