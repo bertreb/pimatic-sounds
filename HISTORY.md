@@ -59,3 +59,5 @@
 	* move non essential error messages to debug
 * 20200306, v0.0.32
 	* fix startup bug sonos
+* 20200306, v0.0.33
+	* added error handling

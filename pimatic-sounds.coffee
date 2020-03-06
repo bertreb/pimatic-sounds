@@ -283,6 +283,10 @@ module.exports = (env) ->
             env.logger.debug "Device '#{@id}' offline"
           @onlineCheckerTimer = setTimeout(@onlineChecker,@heatbeatTime)
         )
+        .catch((err)=>
+          env.logger.debug "Error pinging #{@ip} " + err
+        )
+
       @framework.on 'after init', () =>
         @onlineChecker()
 
@@ -761,6 +765,9 @@ module.exports = (env) ->
             env.logger.debug "Device '#{@id}' offline"
             @onlineCheckerTimer = setTimeout(@onlineChecker,600000)
         )
+        .catch((err)=>
+          env.logger.debug "Error pinging #{@ip} " + err
+        )
 
       @framework.on 'after init', () =>
         @onlineChecker()
@@ -779,6 +786,7 @@ module.exports = (env) ->
 
       @mainVolume = 20
       @initVolume = 40
+      @devicePlayingVolume = 20
 
       @serverIp = @plugin.serverIp
       @serverPort = @plugin.serverPort
