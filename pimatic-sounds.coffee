@@ -856,8 +856,11 @@ module.exports = (env) ->
         if _text?
           @announcementText = _text
         unless @sonosDevice?
-          @onlineChecker()
-          reject("Device not online")
+          info.logger.debug "Device #{@id} handled"
+          reject()
+          return
+        #  @onlineChecker()
+        #  reject("Device not online")
         media =
           uri : _url
           onlyWhenPlaying: false
