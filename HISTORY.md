@@ -57,3 +57,5 @@
 	* fix discovery flooding
 * 20200224, v0.0.31
 	* move non essential error messages to debug
+* 20200306, v0.0.32
+	* fix startup bug sonos

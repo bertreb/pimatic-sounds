@@ -761,8 +761,8 @@ module.exports = (env) ->
             env.logger.debug "Device '#{@id}' offline"
             @onlineCheckerTimer = setTimeout(@onlineChecker,600000)
         )
-      if @onlineCheckerTimer?
-        clearTimeout(@onlineChecker)
+
+      @framework.on 'after init', () =>
         @onlineChecker()
 
 
@@ -829,8 +829,9 @@ module.exports = (env) ->
           @setAttr("info","")
 
       @sonosDevice.on 'Volume', (volume) =>
-        env.logger.debug "New mainvolume '" + @devicePlayingVolume + "'' in device '" + @id + "'"
         @mainVolume = volume
+        @devicePlayingVolume = volume
+        env.logger.debug "New mainvolume '" + @devicePlayingVolume + "'' in device '" + @id + "'"
 
       @sonosDevice.on 'Mute', (isMuted) =>
         env.logger.debug 'Mute changed to ' + isMuted
