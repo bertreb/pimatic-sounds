@@ -328,8 +328,8 @@ module.exports = (env) ->
       #
       # The chromecast status listener setup
       #
-      statusDevice = new Device()
-      statusDevice.on 'error', (err) =>
+      @statusDevice = new Device()
+      @statusDevice.on 'error', (err) =>
         if err.message.indexOf("ECONNREFUSED")
           env.logger.debug "Network config probably changed or device is offline"
         else if err.message.indexOf("ETIMEDOUT")
@@ -338,7 +338,7 @@ module.exports = (env) ->
           env.logger.debug "Error in status device " + err.message
 
       # subscribe to inner client
-      statusDevice.client.on 'close', () =>
+      @statusDevice.client.on 'close', () =>
         @deviceStatus = off
         env.logger.debug "StatusDevice Client Client closing"
 
@@ -347,7 +347,7 @@ module.exports = (env) ->
         port: @port
       env.logger.debug "Connecting to statusDevice with opts: " + JSON.stringify(opts,null,2)
 
-      statusDevice.connect(opts, (err) =>
+      @statusDevice.connect(opts, (err) =>
         if err?
           env.logger.debug "Connect error " + err.message
           return
@@ -361,7 +361,7 @@ module.exports = (env) ->
             env.logger.debug "playAnnouncement error handled"
           )
 
-        statusDevice.on 'status', (_status) =>
+        @statusDevice.on 'status', (_status) =>
 
           #
           # get volume
@@ -371,8 +371,8 @@ module.exports = (env) ->
             @mainVolume = _status.volume.level
             #env.logger.debug "New mainvolume '" + @devicePlayingVolume + "'' in device '" + @id + "'"
 
-          if statusDevice?
-            statusDevice.getSessions((err,sessions) =>
+          if @statusDevice?
+            @statusDevice.getSessions((err,sessions) =>
               if err?
                 env.logger.error "Error getSessions " + err.message
                 return
@@ -383,7 +383,7 @@ module.exports = (env) ->
                   # Join the chromecast info device
                   #
                   lastPlayerState = ""
-                  statusDevice.join(firstSession, DefaultMediaReceiver, (err, app) =>
+                  @statusDevice.join(firstSession, DefaultMediaReceiver, (err, app) =>
                     if err?
                       env.logger.error "Join error " + err.message
                       return
@@ -541,7 +541,7 @@ module.exports = (env) ->
                     return
                   )
               #@_devicePlayer = app
-              @setVolume(device, _vol)
+              @setVolume(_vol)
               .then(()=>
                 app.load(media, {autoplay:true}, (err,status) =>
                   if err?
@@ -659,7 +659,7 @@ module.exports = (env) ->
               env.logger.error "Launch error " + err.message
               return
             #@_devicePlayer = app
-            @setVolume(device, _vol)
+            @setVolume(_vol)
             .then(()=>
               app.load(_media, {autoplay:true}, (err,status) =>
                 if err?
@@ -679,7 +679,7 @@ module.exports = (env) ->
     setAnnoucement: (_announcement) =>
       @announcementText = _announcement
 
-    setVolume: (_device, vol) =>
+    setVolume: (vol) =>
       return new Promise((resolve,reject) =>
         unless vol?
           reject()
@@ -690,7 +690,7 @@ module.exports = (env) ->
         env.logger.debug "Setting volume to  " + vol
         data = {level: vol}
         env.logger.debug "Setvolume data: " + JSON.stringify(data,null,2)
-        _device.setVolume(data, (err) =>
+        @statusDevice.setVolume(data, (err) =>
           if err?
             reject()
             return
@@ -890,11 +890,12 @@ module.exports = (env) ->
         env.logger.debug "Setting volume to  " + vol
         data = {level: vol}
         env.logger.debug "Setvolume data: " + JSON.stringify(data,null,2)
-        @sonosDevice.setVolume(data, (err) =>
-          if err?
-            reject(err)
-            return
+        @sonosDevice.setVolume(vol) # @sonosDevice.setVolume(vol)
+        .then((_vol)=>
           resolve()
+        ).catch((err)=>
+          env.logger.debug "Error in setVolume " + err
+          reject()
         )
       )
 
@@ -1112,6 +1113,19 @@ module.exports = (env) ->
           ((m) =>
             return m.match('file ', optional: yes)
               .matchStringWithVars(setFilename)
+          ),
+          ((m) =>
+            return m.match('vol ', optional: yes)
+              .or([
+                ((m) =>
+                  soundType = "vol"
+                  return m.matchVariable(setMainVolumeVar)
+                ),
+                ((m) =>
+                  soundType = "vol"
+                  return m.matchNumber(setMainVolume)
+                )
+              ])
           )
         ])
         .or([
@@ -1235,7 +1249,7 @@ module.exports = (env) ->
                   return __("\"%s\" was not played", @textIn)
                 )
               )
-              ###
+            
             when "vol"
               if @volumeVar?
                 newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
@@ -1243,26 +1257,26 @@ module.exports = (env) ->
                   if newVolume > 100 then newVolume = 100
                   if newVolume < 0 then newVolume = 0
                 else
-                  return __("\"%s\" volume variable no value", @text)
+                  return __("\"%s\" volume variable no value", @volumeVar)
               else
-                @newVolume = @volume
-              @soundsDevice.setVolume((Number newVolume), (err) =>
-                if err?
-                  env.logger.debug "Error setting volume " + err
-                  return __("\"%s\" was played but volume was not set", @text)
-                return __("\"%s\" was played with volume set", @text)
-              )
-              ###
+                newVolume = @volume
+              @soundsDevice.setVolume(Number newVolume)
+              .then(()=>
+                return __("\"%s\" was played with volume set", newVolume)
+              ).catch((err)=>
+                env.logger.debug "Error setting volume " + err
+                return __("\"%s\" was played but volume was not set", newVolume)
+              )      
             else
               env.logger.debug 'error: unknown playtype'
               return __("\"%s\" unknown playtype", @soundType)
 
-          return __("\"%s\" executed", @text)
+          #return __("\"%s\" executed", @text)
         catch err
           @soundsDevice.deviceStatus = off
           env.logger.debug "Device offline, start onlineChecker " + err
           @soundsDevice.onlineChecker()
-          return __("\"%s\" Rule not executed device offline", @text) + err
+          return __("\"%s\" Rule not executed device offline") + err
 
   soundsPlugin = new SoundsPlugin
   return soundsPlugin

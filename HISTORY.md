@@ -61,3 +61,5 @@
 	* fix startup bug sonos
 * 20200306, v0.0.34
 	* added error handling
+* 20200320, v0.0.35
+	* added setting of mainvolume
