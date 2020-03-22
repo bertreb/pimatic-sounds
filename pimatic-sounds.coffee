@@ -1190,9 +1190,9 @@ module.exports = (env) ->
               @framework.variableManager.evaluateStringExpression(@textIn).then( (strToLog) =>
                 @text = strToLog
                 env.logger.debug "Creating sound file... with text: " + @text
-                #@soundsDevice.setAnnouncement(@text)
+                @soundsDevice.setAnnouncement(@text)
                 @soundsDevice.gtts.save((@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename), @text, (err) =>
-                  env.logger.debug gtts "Error: " + err
+                  env.logger.debug "Error: " + err
                   if err?
                     return __("\"%s\" was not generated", @text)
                   env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
