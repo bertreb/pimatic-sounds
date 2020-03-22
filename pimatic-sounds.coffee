@@ -278,7 +278,7 @@ module.exports = (env) ->
               @initSounds()
             @startupTimer = setTimeout(startupTime,20000)
           else
-            @deviceStatus = off
+            #@deviceStatus = off
             @setAttr("status","offline")
             env.logger.debug "Device '#{@id}' offline"
           @onlineCheckerTimer = setTimeout(@onlineChecker,@heatbeatTime)
@@ -1115,17 +1115,9 @@ module.exports = (env) ->
               .matchStringWithVars(setFilename)
           ),
           ((m) =>
-            return m.match('vol ', optional: yes)
-              .or([
-                ((m) =>
-                  soundType = "vol"
-                  return m.matchVariable(setMainVolumeVar)
-                ),
-                ((m) =>
-                  soundType = "vol"
-                  return m.matchNumber(setMainVolume)
-                )
-              ])
+            return m.match('main', optional: yes, (m)=>
+              soundType = "vol"
+            )
           )
         ])
         .or([
@@ -1185,12 +1177,14 @@ module.exports = (env) ->
       if simulate
         return __("would save file \"%s\"", @textIn)
       else
+        env.logger.info "@soundsDevice.deviceStatus " + @soundsDevice.name
         if @soundsDevice.deviceStatus is off
           if @soundType is "text" or @soundType is "file"
             return __("Rule not executed device offline")
           else
             return __("\"%s\" Rule not executed device offline", @textIn)
         try
+          env.logger.info "Execute: " +@soundType + ", @textIn"
           switch @soundType
             when "text"
               @framework.variableManager.evaluateStringExpression(@textIn).then( (strToLog) =>
@@ -1273,7 +1267,7 @@ module.exports = (env) ->
 
           #return __("\"%s\" executed", @text)
         catch err
-          @soundsDevice.deviceStatus = off
+          #@soundsDevice.deviceStatus = off
           env.logger.debug "Device offline, start onlineChecker " + err
           @soundsDevice.onlineChecker()
           return __("\"%s\" Rule not executed device offline") + err
