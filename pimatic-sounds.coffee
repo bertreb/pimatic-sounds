@@ -59,7 +59,7 @@ module.exports = (env) ->
             res.end JSON.stringify(err)
             return
           contentType = getContentType(req.url)
-          res.writeHead 200, {'Content-Type': contentType } #'audio/mpeg'}
+          res.writeHead 200, {'Content-Type': contentType} #'audio/mpeg'}
           res.end data
           return
         return
@@ -473,7 +473,7 @@ module.exports = (env) ->
 
           #@setAttr "status", "annoucement"
           if _text?
-            @setAnnoucement(_text)
+            @setAnnouncement(_text)
           #env.logger.info "PlayAnnouncement device connected, @devicePlaying: " + @devicePlaying
           if @devicePlaying
             @deviceReplaying = true
@@ -676,7 +676,7 @@ module.exports = (env) ->
         )
       )
 
-    setAnnoucement: (_announcement) =>
+    setAnnouncement: (_announcement) =>
       @announcementText = _announcement
 
     setVolume: (vol) =>
@@ -878,7 +878,7 @@ module.exports = (env) ->
         )
       )
 
-    setAnnoucement: (_announcement) =>
+    setAnnouncement: (_announcement) =>
       @announcementText = _announcement
 
     setVolume: (vol) =>
@@ -967,7 +967,7 @@ module.exports = (env) ->
         for _dev in (@framework.deviceManager.getDeviceById(@id)).config.devices
           device = @framework.deviceManager.getDeviceById(_dev.name)
           if device.deviceStatus is on
-            device.setAnnoucement(@announcementText)
+            device.setAnnouncement(@announcementText)
             device.playAnnouncement(_url, Number _vol, @announcementText)
             .then(()=>
               env.logger.debug "Groupsdevice initiates announcement on device '" + device.id + "'"
@@ -992,7 +992,7 @@ module.exports = (env) ->
       @emit attr, @attributeValues[attr]
       env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
 
-    setAnnoucement: (_announcement) =>
+    setAnnouncement: (_announcement) =>
       @announcementText = _announcement
 
     destroy: ->
@@ -1190,8 +1190,9 @@ module.exports = (env) ->
               @framework.variableManager.evaluateStringExpression(@textIn).then( (strToLog) =>
                 @text = strToLog
                 env.logger.debug "Creating sound file... with text: " + @text
-                @soundsDevice.setAnnoucement(@text)
-                @soundsDevice.gtts.save(@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename, @text, (err) =>
+                #@soundsDevice.setAnnouncement(@text)
+                @soundsDevice.gtts.save((@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename), @text, (err) =>
+                  env.logger.debug gtts "Error: " + err
                   if err?
                     return __("\"%s\" was not generated", @text)
                   env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
@@ -1265,7 +1266,7 @@ module.exports = (env) ->
               env.logger.debug 'error: unknown playtype'
               return __("\"%s\" unknown playtype", @soundType)
 
-          #return __("\"%s\" executed", @text)
+          return __("\"%s\" executed", @text)
         catch err
           @soundsDevice.deviceStatus = off
           env.logger.debug "Device offline, start onlineChecker " + err
