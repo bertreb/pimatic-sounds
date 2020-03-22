@@ -1267,7 +1267,7 @@ module.exports = (env) ->
 
           #return __("\"%s\" executed", @text)
         catch err
-          #@soundsDevice.deviceStatus = off
+          @soundsDevice.deviceStatus = off
           env.logger.debug "Device offline, start onlineChecker " + err
           @soundsDevice.onlineChecker()
           return __("\"%s\" Rule not executed device offline") + err
