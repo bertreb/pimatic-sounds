@@ -63,5 +63,5 @@
 	* added error handling
 * 20200320, v0.0.35
 	* added setting of mainvolume
-* 20200320, v0.0.37
+* 20200320, v0.0.38
 	* fix playing text/file

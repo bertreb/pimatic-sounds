@@ -474,7 +474,7 @@ module.exports = (env) ->
           #@setAttr "status", "annoucement"
           if _text?
             @setAnnoucement(_text)
-          env.logger.info "PlayAnnouncement device connected, @devicePlaying: " + @devicePlaying
+          #env.logger.info "PlayAnnouncement device connected, @devicePlaying: " + @devicePlaying
           if @devicePlaying
             @deviceReplaying = true
             @deviceReplayingUrl = @devicePlayingUrl
@@ -1177,14 +1177,14 @@ module.exports = (env) ->
       if simulate
         return __("would save file \"%s\"", @textIn)
       else
-        env.logger.info "@soundsDevice.deviceStatus " + @soundsDevice.name
+        #env.logger.info "@soundsDevice.deviceStatus " + @soundsDevice.name
         if @soundsDevice.deviceStatus is off
           if @soundType is "text" or @soundType is "file"
             return __("Rule not executed device offline")
           else
             return __("\"%s\" Rule not executed device offline", @textIn)
         try
-          env.logger.info "Execute: " +@soundType + ", @textIn"
+          #env.logger.info "Execute: " +@soundType + ", @textIn"
           switch @soundType
             when "text"
               @framework.variableManager.evaluateStringExpression(@textIn).then( (strToLog) =>
