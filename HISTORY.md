@@ -65,3 +65,5 @@
 	* added setting of mainvolume
 * 20200320, v0.0.38
 	* fix playing text/file
+* 20200331, v0.0.39
+	* fix info after announcement and pause
