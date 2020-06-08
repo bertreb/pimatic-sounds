@@ -42,7 +42,8 @@
     "path": "^0.12.7",
     "ping": "^0.2.2",
     "sonos": "^1.12.6",
-    "util": "^0.12.1"
+    "util": "^0.12.1",
+    "protobufjs": "^6.8.8"
   },
   "peerDependencies": {
     "pimatic": "0.9.*"
