@@ -26,7 +26,7 @@
     "tts",
     "chromecast"
   ],
-  "version": "0.0.40",
+  "version": "0.0.41",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/bertreb/pimatic-sounds.git"
