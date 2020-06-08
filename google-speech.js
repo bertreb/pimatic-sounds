@@ -17,9 +17,9 @@ async function save(client, lang, filename, txt, callback) {
     // Select the language and SSML voice gender (optional)
     voice: {languageCode: lang, ssmlGender: 'NEUTRAL'},
     // select the type of audio encoding
-    audioConfig: {audioEncoding: 'MP3'},
+    audioConfig: {audioEncoding: 'MP3', speakingRate: 0.9}, //pitch: 0
   };
-
+  
   // Performs the text-to-speech request
   const [response] = await client.synthesizeSpeech(request);
   // Write the binary audio content to a local file
