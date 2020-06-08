@@ -15,4 +15,12 @@ module.exports = {
       description: "Debug mode. Writes debug messages to the pimatic log, if set to true."
       type: "boolean"
       default: false
+    tts:
+      description: "the tss engine to be used"
+      enum: ["google-translate","google-cloud"]
+      default: "google-translate"
+    googleCloudJson:
+      description: "The filename of the Google Cloud credential file"
+      type: "string"
+      required: false
 }

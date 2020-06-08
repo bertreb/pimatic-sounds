@@ -67,3 +67,5 @@
 	* fix playing text/file
 * 20200331, v0.0.39
 	* fix info after announcement and pause
+* 20200608, v0.0.40
+	* added Google Cloud Text-to-speech

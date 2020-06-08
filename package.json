@@ -16,7 +16,8 @@
     "HISTORY.md",
     "languages",
     "initSound.mp3",
-    "content-types.js"
+    "content-types.js",
+    "google-speech.js"
   ],
   "homepage": "https://github.com/bertreb/pimatic-sounds.git",
   "keywords": [
@@ -25,13 +26,14 @@
     "tts",
     "chromecast"
   ],
-  "version": "0.0.39",
+  "version": "0.0.40",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/bertreb/pimatic-sounds.git"
   },
   "configSchema": "pimatic-sounds-config-schema.coffee",
   "dependencies": {
+    "@google-cloud/text-to-speech": "^3.0.0",
     "bonjour": "^3.5.0",
     "castv2-client": "^1.2.0",
     "lodash": "^4.17.15",

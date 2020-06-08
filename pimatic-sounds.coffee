@@ -35,6 +35,25 @@ module.exports = (env) ->
               env.logger.error "InitSounds not copied " + err
             env.logger.debug "InitSounds copied to sounds directory"
 
+      # init text to speech
+      switch @config.tts
+        when "google-cloud"
+          @language = @config.language ? "en-US"
+          fs.readFile @pluginDir + "/" + @config.googleCloudJson, (err, data) =>
+            if err
+              env.logger.debug "Error, Google Cloud Json not found. Using google-translate."
+              @language = @config.language ? "en"
+              @gtts = require('node-gtts')(@language)
+            else
+              _data = JSON.parse(data);
+              @cred =
+                email: _data.client_email
+                private_key: _data.private_key
+              @gtts = require('./google-speech.js')(@language, @cred)
+        else
+          @language = @config.language ? "en"
+          @gtts = require('node-gtts')(@language)
+
       # detect own IP address
       for i, addresses of Os.networkInterfaces()
         for add in addresses
@@ -156,7 +175,6 @@ module.exports = (env) ->
             @framework.deviceManager.discoveredDevice( "pimatic-sounds", config.name, config)
         )
         discoverChromecastDevices()
-
       )
 
       discoverChromecastDevices = () =>
@@ -297,8 +315,24 @@ module.exports = (env) ->
       #
       # Configure tts
       #
-      @language = @plugin.config.language ? "en"
-      @gtts = require('node-gtts')(@language)
+      @gtts = @plugin.gtts
+      ###
+      switch @plugin.config.tts
+        when "google-cloud"
+          @language = @plugin.config.language ? "en-US"
+          fs.readFile @plugin.pluginDir + "/" + @plugin.config.googleCloudJson, (err, data) =>
+            if err
+              env.logger.error "Error, no Google Cloud Json found!"
+              return
+            _data = JSON.parse(data);
+            @cred =
+              email: _data.client_email
+              private_key: _data.private_key
+            @gtts = require('./google-speech.js')(@language, @cred)
+        else
+          @language = @plugin.config.language ? "en"
+          @gtts = require('node-gtts')(@language)
+      ###
 
       @mainVolume = 0.20
       @initVolume = 0.40
@@ -822,8 +856,24 @@ module.exports = (env) ->
       #
       # Configure tts
       #
-      @language = @plugin.config.language ? "en"
-      @gtts = require('node-gtts')(@language)
+      @gtts = @plugin.gtts
+      ###
+      switch @plugin.config.tts
+        when "google-cloud"
+          @language = @plugin.config.language ? "en-US"
+          fs.readFile @plugin.pluginDir + "/" + @plugin.config.googleCloudJson, (err, data) =>
+            if err
+              env.logger.error "Error, no Google Cloud Json found!"
+              return
+            _data = JSON.parse(data);
+            @cred =
+              email: _data.client_email
+              private_key: _data.private_key
+            @gtts = require('./google-speech.js')(@language, @cred)
+        else
+          @language = @plugin.config.language ? "en"
+          @gtts = require('node-gtts')(@language)
+      ###
 
       @mainVolume = 20
       @initVolume = 40
@@ -996,9 +1046,24 @@ module.exports = (env) ->
         base: baseUrl
         filename: @textFilename
 
-      @language = @plugin.config.language ? "en"
-      @gtts = require('node-gtts')(@language)
-
+      @gtts = @plugin.gtts
+      ###
+      switch @plugin.config.tts
+        when "google-cloud"
+          @language = @plugin.config.language ? "en-US"
+          fs.readFile @plugin.pluginDir + "/" + @plugin.config.googleCloudJson, (err, data) =>
+            if err
+              env.logger.error "Error, no Google Cloud Json found!"
+              return
+            _data = JSON.parse(data);
+            @cred =
+              email: _data.client_email
+              private_key: _data.private_key
+            @gtts = require('./google-speech.js')(@language, @cred)
+        else
+          @language = @plugin.config.language ? "en"
+          @gtts = require('node-gtts')(@language)
+      ###
 
       super()
 
