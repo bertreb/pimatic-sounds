@@ -46,7 +46,7 @@ module.exports = (env) ->
               @language = @config.language ? "en"
               @gtts = require('node-gtts')(@language)
             else
-              _data = JSON.parse(data);
+              _data = JSON.parse(data)
               @cred =
                 email: _data.client_email
                 private_key: _data.private_key
