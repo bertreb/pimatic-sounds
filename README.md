@@ -12,12 +12,17 @@ After installation and restart activate the plugin and add the following to the 
 {
   "port": 8088,     // or the port you like and is free
   "language": "en", // or your own language
+  "tts": ["google-translate","google-cloud"] // select tts engine
+  "googleCloudJson": "<if tts engine is google-cloud the filename of the credential json file>" // incl .json extension
   "debug": true     // if you want
 }
 
 ```
 The IP address of the computer the plugin is running on, is automatically detected and used for the media server. It must be in the range 192.168.xxx.xxx.
 The supported (but not tested) languages can be found in  [languages](https://github.com/bertreb/pimatic-sounds/blob/master/languages).
+
+### Google Cloud text-to-speech
+Create credential.json file by following [the procedure](https://cloud.google.com/text-to-speech/docs/quickstart-client-libraries?hl=en) and follow the 'before you begin' steps until step 4f (download the json file). Put the json file in your pimatic-app directory.
 
 ### Chromecast Device
 Create a Chromecast device with the following config.
