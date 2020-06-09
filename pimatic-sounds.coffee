@@ -21,6 +21,7 @@ module.exports = (env) ->
 
       @soundsDir = path.resolve @framework.maindir, '../..', 'sounds'
       @pluginDir = path.resolve @framework.maindir, "../pimatic-sounds"
+      @pimaticDir = path.resolve @framework.maindir, '../..'
 
       @initFilename = "initSound.mp3"
       if !fs.existsSync(@soundsDir)
@@ -39,7 +40,7 @@ module.exports = (env) ->
       switch @config.tts
         when "google-cloud"
           @language = @config.language ? "en-US"
-          fs.readFile @pluginDir + "/" + @config.googleCloudJson, (err, data) =>
+          fs.readFile @pimaticDir + "/" + @config.googleCloudJson, (err, data) =>
             if err
               env.logger.debug "Error, Google Cloud Json not found. Using google-translate."
               @language = @config.language ? "en"
@@ -460,7 +461,7 @@ module.exports = (env) ->
                         @setAttr "info", ""
                         return
                       if status.playerState is "PAUSED"
-                        #env.logger.debug "PlayerState is PAUSED" 
+                        #env.logger.debug "PlayerState is PAUSED"
                         @devicePlaying = true
                         @devicePaused = true
                         @setAttr "status", "paused"
@@ -1351,7 +1352,7 @@ module.exports = (env) ->
                   return __("\"%s\" was not played", @textIn)
                 )
               )
-            
+
             when "vol"
               if @volumeVar?
                 newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
@@ -1368,7 +1369,7 @@ module.exports = (env) ->
               ).catch((err)=>
                 env.logger.debug "Error setting volume " + err
                 return __("\"%s\" was played but volume was not set", newVolume)
-              )      
+              )
             else
               env.logger.debug 'error: unknown playtype'
               return __("\"%s\" unknown playtype", @soundType)
