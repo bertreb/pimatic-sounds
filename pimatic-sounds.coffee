@@ -306,9 +306,10 @@ module.exports = (env) ->
           env.logger.debug "Error pinging #{@ip} " + err
         )
 
-      @framework.on 'after init', () =>
+      @framework.variableManager.waitForInit()
+      .then(()=>
         @onlineChecker()
-
+      )
       super()
 
     initSounds: () =>
@@ -845,10 +846,10 @@ module.exports = (env) ->
           env.logger.debug "Error pinging #{@ip} " + err
         )
 
-      @framework.on 'after init', () =>
+      @framework.variableManager.waitForInit()
+      .then(()=>
         @onlineChecker()
-
-
+      )
 
       super()
 

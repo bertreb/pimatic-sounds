@@ -69,3 +69,5 @@
 	* fix info after announcement and pause
 * 20200608, v0.0.44
 	* added Google Cloud Text-to-speech
+* 20200608, v0.0.45
+	* edit startup check
