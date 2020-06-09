@@ -13,7 +13,8 @@ async function save(client, lang, filename, txt, callback) {
 
   // Construct the request
   const request = {
-    input: {text: text},
+    //input: {text: text},
+    input: {ssml: text},
     // Select the language and SSML voice gender (optional)
     voice: {languageCode: lang, ssmlGender: 'NEUTRAL'},
     // select the type of audio encoding
