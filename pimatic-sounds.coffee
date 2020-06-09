@@ -39,18 +39,28 @@ module.exports = (env) ->
       # init text to speech
       switch @config.tts
         when "google-cloud"
-          @language = @config.language ? "en-US"
+          language = @config.language ? "en-US"
+          voice = @config.voice ? ""
+          pitch = 0
+          pitch = @config.pitch if (@config.pitch >= -20) and (@config.pitch <= 20)
+          speakingRate = 1
+          speakingRate = @config.speakingRate if (@config.speakingRate >= 0.25) and (@config.speakingRate <= 4)
+          options = 
+            language: language
+            voice: voice
+            pitch: pitch
+            speakingRate: speakingRate
           fs.readFile @pimaticDir + "/" + @config.googleCloudJson, (err, data) =>
             if err
               env.logger.debug "Error, Google Cloud Json not found. Using google-translate."
               @language = @config.language ? "en"
-              @gtts = require('node-gtts')(@language)
+              @gtts = require('node-gtts')(language)
             else
               _data = JSON.parse(data)
-              @cred =
+              cred =
                 email: _data.client_email
                 private_key: _data.private_key
-              @gtts = require('./google-speech.js')(@language, @cred)
+              @gtts = require('./google-speech.js')(cred, options)
         else
           @language = @config.language ? "en"
           @gtts = require('node-gtts')(@language)
