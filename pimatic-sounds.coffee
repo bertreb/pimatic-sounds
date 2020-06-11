@@ -1225,22 +1225,22 @@ module.exports = (env) ->
         .match('play ')
         .or([
           ((m) =>
-            return m.match('text ', optional: yes)
+            return m.match('text ')
               .matchStringWithVars(setLogString)
           ),
           ((m) =>
-            return m.match('file ', optional: yes)
+            return m.match('file ')
               .matchStringWithVars(setFilename)
           ),
           ((m) =>
-            return m.match('main', optional: yes, (m)=>
+            return m.match('main', (m)=>
               soundType = "vol"
             )
           )
         ])
         .or([
           ((m) =>
-            return m.match(' vol ', optional: yes)
+            return m.match(' vol ')
               .or([
                 ((m) =>
                   return m.matchVariable(setMainVolumeVar)

@@ -71,3 +71,5 @@
 	* added Google Cloud Text-to-speech
 * 20200608, v0.0.45
 	* edit startup check
+* 20200608, v0.0.47
+	* update rule engine
