@@ -785,6 +785,22 @@ module.exports = (env) ->
         )
       )
 
+    stop: () =>
+      return new Promise((resolve,reject) =>
+        @stopCasting()
+        .then((result) =>
+          env.logger.debug "Stopping device '" + @id
+          resolve()
+        ).catch((err)=>
+          @deviceStatus = off
+          @setAttr("status","offline")
+          @setAttr("info","")
+          @onlineChecker()
+          reject(err)
+        )
+      )
+
+
     destroy: ->
       @stopCasting()
       .then(()=>
@@ -1002,6 +1018,21 @@ module.exports = (env) ->
         )
       )
 
+    stop: () =>
+      return new Promise((resolve,reject) =>
+        @sonosDevice.stop()
+        .then((result) =>
+          env.logger.debug "Stopping device '" + @id
+          resolve()
+        ).catch((err)=>
+          @deviceStatus = off
+          @setAttr("status","offline")
+          @setAttr("info","")
+          @onlineChecker()
+          reject(err)
+        )
+      )
+
     destroy: ->
       try
         if @sonosDevice?
@@ -1095,7 +1126,6 @@ module.exports = (env) ->
                 @setAttr("status","")
                 @setAttr("info","")
               ,5000)
-
             ).catch((err)=>
               env.logger.debug "Error in Group playAnnouncement: " + err
               reject()
@@ -1104,6 +1134,22 @@ module.exports = (env) ->
             env.logger.debug "Device #{device.id} is offline"
         resolve()
       )
+
+    stop: () =>
+      return new Promise((resolve,reject) =>
+        device.stop()
+        .then((result) =>
+          env.logger.debug "Stopping group device '" + @id
+          resolve()
+        ).catch((err)=>
+          @deviceStatus = off
+          @setAttr("status","offline")
+          @setAttr("info","")
+          @onlineChecker()
+          reject(err)
+        )
+      )
+
 
     setAttr: (attr, _status) =>
       @attributeValues[attr] = _status
@@ -1235,6 +1281,11 @@ module.exports = (env) ->
           ((m) =>
             return m.match('main', (m)=>
               soundType = "vol"
+            )
+          ),
+          ((m) =>
+            return m.match('stop', (m)=>
+              soundType = "stop"
             )
           )
         ])
@@ -1381,9 +1432,20 @@ module.exports = (env) ->
                 env.logger.debug "Error setting volume " + err
                 return __("\"%s\" was played but volume was not set", newVolume)
               )
+
+            when "stop"
+              @soundsDevice.stop()
+              .then(()=>
+                return __("\"%s\" was stopped")
+              ).catch((err)=>
+                env.logger.debug "Error stopping " + err
+                return __("\"%s\" was not stopped")
+              )
+
             else
               env.logger.debug 'error: unknown playtype'
               return __("\"%s\" unknown playtype", @soundType)
+
 
           return __("\"%s\" executed", @text)
         catch err

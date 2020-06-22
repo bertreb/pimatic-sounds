@@ -78,13 +78,14 @@ In the rules the groups device will be available as an extra play device option.
 The function of a device is controlled via rules
 The ACTION rule syntax is:
 
-**play**  [text|file|main]  ["$variable"|"text for tts"]|["audio filename"|"$variable"]  [**vol** [number|$variable]]  **on**  [ChromecastDevice | SonosDevice | GroupDevice]
+**play**  [text|file|main|stop]  ["$variable"|"text for tts"]|["audio filename"|"$variable"]  [**vol** [number|$variable]]  **on**  [ChromecastDevice | SonosDevice | GroupDevice]
 
 Some examples of command lines are:
 1. **play text** "this is a nice text" **vol** 50 **on** mysoundsdevice
 2. **play file** "nice-music.mp3" **vol** 25 **on** mysoundsdevice
 3. **play file** "$that-funky-music" vol $loud-music **on** mysoundsdevice
 4. **play main** vol $loud-music **on** mysoundsdevice
+5. **play stop on** mysoundsdevice
 
 In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sounds is created. You can put mp3 files in that directory. You can create subdirectories in sounds and can use them in the rule.
 
