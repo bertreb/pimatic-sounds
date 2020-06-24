@@ -73,5 +73,5 @@
 	* edit startup check
 * 20200608, v0.0.47
 	* update rule engine
-* 20200622, v0.0.48
+* 20200624, v0.0.48
 	* added stop function
