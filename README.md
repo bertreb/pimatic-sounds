@@ -32,7 +32,7 @@ The IP address of the computer the plugin is running on, is automatically detect
 
 If you are using assistant-relay you need to install it before you use that in this plugin. The installation instructions are [here](https://greghesp.github.io/assistant-relay/docs/introduction). Configure and activate assistant-relay first. You can install it on any computer as long it is in the same lan network pimatic and you're google devices are running on. The ip number of the computer assistant-relay is running on and the port number (default 3000) are used in this plugin. The username you used in configuring the google credentials is used also (linked to the downloaded json file with the secret).
 
-The tts and googleCloudJson for the GoogleDevice are not used because the text to voice conversion is handled via asssitant-relay.
+The tts and googleCloudJson for the GoogleDevice are not used because the text to voice conversion is handled via assistant-relay.
 Via the management/config menu of assistant-relay you can set the language option, enable casting and announcement, etc.
 
 ### Google Cloud text-to-speech
