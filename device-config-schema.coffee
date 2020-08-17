@@ -18,6 +18,24 @@ module.exports = {
         type: "boolean"
         default: true
   }
+  GoogleDevice: {
+    title: "GoogleDevice config options"
+    type: "object"
+    extensions: ["xLink", "xAttributeOptions"]
+    properties:
+      ip:
+        descpription: "The IP address of the Google device"
+        type: "string"
+        required: true
+      port:
+        descpription: "The port number for the Chromecast service. Is set automatically"
+        type: "number"
+        default: 8009
+      playInit:
+        descpription: "Plays initSound.mp3 on (re)startup of device"
+        type: "boolean"
+        default: true
+  }
   SonosDevice: {
     title: "SonosDevice config options"
     type: "object"

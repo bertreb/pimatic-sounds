@@ -1,5 +1,7 @@
 # pimatic-sounds
-Pimatic plugin for playing mp3 files and tts sentences on Chromecast and Sonos devices. A typical chromecast device devices is Google Home or a Google chromecast dongle. The Ikea SYMFONISK is a Sonos device.
+Pimatic plugin for playing mp3 files and tts sentences on Chromecast and Sonos devices. A typical chromecast device devices is Google Home or a Google chromecast dongle. The Ikea SYMFONISK is a Sonos device. There are 2 options for using Google devices.
+1. Use the Chromecast option (the ChromecastDevice). This can be used without any action in the Google cloud. The announcement function works in limited cases (tested only with tuneIn). In some cases the currently playing stream with be stopped when an annoucement is played.
+2. Use the Assistant option (the GoogleDevice). In this option an announcement will just pause the currently playing stream and the stream will continue after the announcement. For this option you need to cofigure 'an assistant device' in Google Cloud ([instructions](https://greghesp.github.io/assistant-relay/docs/introduction))
 
 Install the plugin via the plugin page of Pimatic or add the following in config.json
 ```
@@ -14,12 +16,20 @@ After installation and restart activate the plugin and add the following to the 
   "language": "en", // or your own language
   "tts": ["google-translate","google-cloud"] // select tts engine
   "googleCloudJson": "<if tts engine is google-cloud the filename of the credential json file>" // incl .json extension
+  "voice": "The name of the voice, format is <language-code>-Standard-[A,B,C,D]"
+  "pitch: "The increase or decrease in semitones of the voice pitch (-20 to +20)"
+  "speakingRate: "The speed of the voice (0.25 to 4.0)"
+  "assistantRelay: "Enable to use for GoogleDevice (if assistant-relay is installed)"
+  "assistantRelayIp: "The IP address of the assistant-relay server"
+  "assistantRelayPort: "The Port number of the assistant-relay server"
+  "assistantRelayUser: "The username for assistant-relay"
   "debug": true     // if you want
 }
 
 ```
 The IP address of the computer the plugin is running on, is automatically detected and used for the media server. It must be in the range 192.168.xxx.xxx.
-The supported (but not tested) languages can be found in  [languages](https://github.com/bertreb/pimatic-sounds/blob/master/languages).
+If you are using assistant-relay you need to install it before you use that in this plugin. The installation instructions are [here](https://greghesp.github.io/assistant-relay/docs/introduction). Configure and activate assistant-relay first. You can install it on any computer as long it is in the same lan network pimatic and you're google devices are running on. The ip number of the computer assistant-relay is running on and the port number (default 3000) are used in this plugin. The username you used in configuring the google credentials is used also (linked to the downloaded json file with the secret). The tts and googleCloudJson for the GoogleDevice are not used because the text to voice conversion is handled via asssitant-relay.
+Via the management/config menu of assistant-relay you can set the language option, enable casting and announcement, etc.
 
 ### Google Cloud text-to-speech
 Create credential.json file by following [the procedure](https://cloud.google.com/text-to-speech/docs/quickstart-client-libraries?hl=en) and follow the 'before you begin' steps until step 4f (download the json file). Put the json file in your pimatic-app directory.
@@ -38,6 +48,21 @@ Create a Chromecast device with the following config.
 }
 ```
 The Cromecast device types are a single, grouped or paired devices. The discovery will find them and they can be added and used in the rules
+
+### Google Device
+Create a Google device with the following config.
+
+```
+{
+  "id": "testcast",         // id for usage within Pimatic
+  "name": "testcast",       // name for usage within Pimatic
+  "class": "GoogleDevice"
+  "ip": "192.168.xxx.xxx",  // IP of your Google device
+  "playInit": true          // plays initSound.mp3 after (re)start of device
+  "xAttributeOptions": [],
+}
+```
+The GoogleDevice is found and added via the discovery.
 
 
 ### Sonos Device
@@ -104,6 +129,7 @@ This plugin is build from several existing pieces of software. Sometimes the ide
 - castv2-client from thibauts
 - node-red-contrib-castv2 from i8beef
 - node-sonos from bencevans
+- assistant-relay from greghesp
 ---
 The plugin is **only Node v8 or v10** compatible and in development.
 

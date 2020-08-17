@@ -7,7 +7,7 @@ module.exports = (env) ->
   _ = require('lodash')
   M = env.matcher
   Os = require('os')
-  ping = require ("ping")
+  ping = require("ping")
   Device = require('castv2-client').Client
   DefaultMediaReceiver = require('castv2-client').DefaultMediaReceiver
   Sonos = require('sonos').Sonos
@@ -15,6 +15,7 @@ module.exports = (env) ->
   util = require('util')
   getContentType = require('./content-types.js')
   bonjour = require('bonjour')()
+  needle = require('needle')
 
   class SoundsPlugin extends env.plugins.Plugin
     init: (app, @framework, @config) =>
@@ -115,7 +116,7 @@ module.exports = (env) ->
       oldClassName = "SoundsDevice"
       newClassName = "ChromecastDevice"
       @soundsClasses = ["ChromecastDevice","SonosDevice"]
-      @soundsAllClasses = ["ChromecastDevice","SonosDevice","GroupDevice"]
+      @soundsAllClasses = ["ChromecastDevice","GoogleDevice","SonosDevice","GroupDevice"]
       @enumSoundsDevices = []
       @defaultChromecastPort = 8009
       env.logger.debug "Found enum SoundsGroups: " + @enumSoundsGroups
@@ -158,6 +159,10 @@ module.exports = (env) ->
       @framework.deviceManager.registerDeviceClass('ChromecastDevice', {
         configDef: deviceConfigDef.ChromecastDevice,
         createCallback: (config, lastState) => new ChromecastDevice(config, lastState, @framework, @)
+      })
+      @framework.deviceManager.registerDeviceClass('GoogleDevice', {
+        configDef: deviceConfigDef.GoogleDevice,
+        createCallback: (config, lastState) => new GoogleDevice(config, lastState, @framework, @)
       })
       @framework.deviceManager.registerDeviceClass('SonosDevice', {
         configDef: deviceConfigDef.SonosDevice,
@@ -222,10 +227,14 @@ module.exports = (env) ->
                 else
                   newName = "cast " + address.split('.').join("") + " - " + service.port
                   newId = "cast_" + address.split('.').join("") + "-" + service.port
+                if @config.assistantRelay
+                  _cl = "GoogleDevice"
+                else
+                  _cl = "ChromecastDevice"
                 config =
                   id: service.txt.id
                   name: newName
-                  class: "ChromecastDevice"
+                  class: _cl
                   ip: address
                   port: service.port
                 @framework.deviceManager.discoveredDevice( "pimatic-sounds", config.name, config)
@@ -817,6 +826,227 @@ module.exports = (env) ->
       )
       super()
 
+  class GoogleDevice extends env.devices.Device
+
+    constructor: (@config, lastState, @framework, @plugin) ->
+      @id = @config.id
+      @name = @config.name
+
+      if @_destroyed then return
+
+      @deviceStatus = off
+      @textFilename = @id + "_text.mp3"
+
+
+      #
+      # Configure attributes
+      #
+
+      @attributes = {}
+      @attributeValues = {}
+      _attrs = ["status","info"]
+      for _attr in _attrs
+        @attributes[_attr] =
+          description: "The " + _attr
+          type: "string"
+          label: _attr
+          acronym: _attr
+        @attributeValues[_attr] = ""
+        @_createGetter(_attr, =>
+          return Promise.resolve @attributeValues[_attr]
+        )
+        @setAttr _attr, @attributeValues[_attr]
+      @setAttr("status","starting")
+
+      @assistantRelayIp = @plugin.config.assistantRelayIp
+      @assistantRelayPort = @plugin.config.assistantRelayPort ? 3000
+      @assistantRelayUser = @plugin.config.assistantRelayUser
+
+
+      @ip = @config.ip
+
+      @serverIp = @plugin.serverIp
+      @serverPort = @plugin.serverPort
+      @soundsDir = @plugin.soundsDir
+      baseUrl = "http://" + @serverIp + ":" + @serverPort
+      @textFilename = @id + "_text.mp3"
+
+      @media =
+        url: baseUrl + "/" + @textFilename
+        base: baseUrl
+        filename: @textFilename
+
+      @ipCast = @assistantRelayIp + ':' + @assistantRelayPort + '/cast'
+      @ipCastStop = @ipCast + '/stop'
+      @ipAssistant = @assistantRelayIp + ':' + @assistantRelayPort + '/assistant'
+
+      @opts =
+        json: true
+        headers: {'Content-Type': 'application/json;charset=UTF-8'}
+
+      @bodyInit =
+        device: @ip
+        source: @media.base + "/" + @plugin.initFilename
+        type: 'website'
+      @bodyAnnouncement = 
+        command: "no text yet"
+        broadcast: true
+        user: @assistantRelayUser
+      @bodyCast = 
+        device: @ip
+        source: @media.base + "/" + @plugin.initFilename
+        type: 'website'
+
+      #
+      # Check if Device is online
+      #
+      
+      @port = (if @config.port? then @config.port else 8009) # default single device port
+      @heatbeatTime = 600000 # 10 minutes heartbeat
+      @onlineChecker = () =>
+        env.logger.debug "Heartbeat check online status device '#{@id}"
+        ping.promise.probe(@ip,{timeout: 2})
+        .then((host)=>
+          if host.alive
+            if @deviceStatus is on
+              # status checked and device is online no action, schedule next heartbeat
+              @onlineCheckerTimer = setTimeout(@onlineChecker,@heatbeatTime)
+              return
+            startupTime = () =>
+              env.logger.debug "Device '#{@id}' is online"
+              @deviceStatus = on
+              @setAttr("status","online")
+              @setAttr("info","")
+              @initSounds()
+            @startupTimer = setTimeout(startupTime,20000)
+          else
+            #@deviceStatus = off
+            @setAttr("status","offline")
+            env.logger.debug "Device '#{@id}' offline"
+          @onlineCheckerTimer = setTimeout(@onlineChecker,@heatbeatTime)
+        )
+        .catch((err)=>
+          env.logger.debug "Error pinging #{@ip} " + err
+        )
+
+      @framework.variableManager.waitForInit()
+      .then(()=>
+        @onlineChecker()
+      )
+    
+      super()
+
+    initSounds: () =>
+
+
+      if @config.playInit or !(@config.playInit?)
+        needle('post',@ipCast, @bodyInit, @opts)
+        .then((resp)=>
+          env.logger.debug "StatusCode: " + resp.statuscode
+        ).catch((err)=>
+          env.logger.debug "Error playing initSounds " + err
+        )
+
+      return
+
+    setOpts: (ip, port) =>
+      @ip = ip
+      @port = port
+
+    setAttr: (attr, _status) =>
+      unless @attributeValues[attr] is _status
+        @attributeValues[attr] = _status
+        @emit attr, @attributeValues[attr]
+
+        #env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
+
+    playFile: (_url, _volume) =>
+      return new Promise((resolve,reject) =>
+
+        @bodyCast.source = _url
+
+        needle('post',@ipCast, @bodyCast, @opts)
+        .then((resp)=>
+          resolve()
+        )
+        .catch((err)=>
+          env.logger.debug("error playing file handled: " + err)
+          reject("playing file failed")
+        )
+      )
+
+
+    playAnnouncement: (_text, _volume) =>
+      return new Promise((resolve,reject) =>
+
+        @bodyAnnouncement.command = _text
+
+        needle('post',@ipAssistant, @bodyAnnouncement, @opts)
+        .then((resp)=>
+          resolve()
+        )
+        .catch((err)=>
+          env.logger.debug("error announcement handled: " + err)
+          reject("announcement failed")
+        )
+      )
+
+    setVolume: (vol) =>
+      return new Promise((resolve,reject) =>
+        unless vol?
+          reject()
+        if vol > 1 then vol /= 100
+        if vol < 0 then vol = 0
+        resolve()
+        ###
+        @mainVolume = vol
+        @devicePlayingVolume = vol
+        env.logger.debug "Setting volume to  " + vol
+        data = {level: vol}
+        env.logger.debug "Setvolume data: " + JSON.stringify(data,null,2)
+        @statusDevice.setVolume(data, (err) =>
+          if err?
+            reject()
+            return
+          resolve()
+        )
+        ###
+      )
+
+    stop: () =>
+      return new Promise((resolve,reject) =>
+        _body = 
+          device: @ip
+          force: true
+        @setAttr("status","idle")
+        @setAttr("info","")
+        needle('post', @ipCastStop, _body, @opts)
+        .then((resp)=>
+          resolve()
+        )
+        .catch((err)=>
+          env.logger.debug("error stop playing file handled: " + err)
+          reject("stop playing file failed")
+        )
+      )
+
+    destroy: ->
+      @stopCasting()
+      .then(()=>
+        try
+          #if @statusDevice?
+          #  @statusDevice.close()
+          #  @statusDevice.removeAllListeners()
+        catch err
+          env.logger.debug "Destroy error handled " + err
+        clearTimeout(@onlineCheckerTimer)
+        clearTimeout(@startupTimer)
+      ).catch((err)=>
+        env.logger.debug "Error in Destroy stopcasting " + err
+      )
+      super()
+
+
   class SonosDevice extends env.devices.Device
 
     constructor: (@config, lastState, @framework, @plugin) ->
@@ -885,23 +1115,6 @@ module.exports = (env) ->
       # Configure tts
       #
       @gtts = @plugin.gtts
-      ###
-      switch @plugin.config.tts
-        when "google-cloud"
-          @language = @plugin.config.language ? "en-US"
-          fs.readFile @plugin.pluginDir + "/" + @plugin.config.googleCloudJson, (err, data) =>
-            if err
-              env.logger.error "Error, no Google Cloud Json found!"
-              return
-            _data = JSON.parse(data);
-            @cred =
-              email: _data.client_email
-              private_key: _data.private_key
-            @gtts = require('./google-speech.js')(@language, @cred)
-        else
-          @language = @plugin.config.language ? "en"
-          @gtts = require('node-gtts')(@language)
-      ###
 
       @mainVolume = 20
       @initVolume = 40
@@ -1090,24 +1303,6 @@ module.exports = (env) ->
         filename: @textFilename
 
       @gtts = @plugin.gtts
-      ###
-      switch @plugin.config.tts
-        when "google-cloud"
-          @language = @plugin.config.language ? "en-US"
-          fs.readFile @plugin.pluginDir + "/" + @plugin.config.googleCloudJson, (err, data) =>
-            if err
-              env.logger.error "Error, no Google Cloud Json found!"
-              return
-            _data = JSON.parse(data);
-            @cred =
-              email: _data.client_email
-              private_key: _data.private_key
-            @gtts = require('./google-speech.js')(@language, @cred)
-        else
-          @language = @plugin.config.language ? "en"
-          @gtts = require('node-gtts')(@language)
-      ###
-
       super()
 
     playAnnouncement: (_url, _vol, _text) =>
@@ -1351,37 +1546,49 @@ module.exports = (env) ->
           if @soundType is "text" or @soundType is "file"
             return __("Rule not executed device offline")
           else
-            return __("\"%s\" Rule not executed device offline", @textIn)
+            return __("Rule not executed device offline")
         try
           #env.logger.info "Execute: " +@soundType + ", @textIn"
           switch @soundType
             when "text"
               @framework.variableManager.evaluateStringExpression(@textIn).then( (strToLog) =>
                 @text = strToLog
-                env.logger.debug "Creating sound file... with text: " + @text
-                @soundsDevice.gtts.save((@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename), @text, (err) =>
-                  env.logger.debug "Error: " + err
-                  if err?
-                    return __("\"%s\" was not generated", @text)
-                  env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
-                  if @volumeVar?
-                    newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
-                    if newVolume?
-                      if newVolume > 100 then newVolume = 100
-                      if newVolume < 0 then newVolume = 0
-                    else
-                      return __("\"%s\" volume variable no value", @text)
-                  else
-                    newVolume = @volume
-                  @soundsDevice.setAnnouncement(@text)
-                  @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number newVolume, @text, @duration)
+                if @soundsDevice.config.class is "GoogleDevice"
+                  # no text to speech conversion needed
+                  #@soundsDevice.setAnnouncement(@text)
+                  @soundsDevice.playAnnouncement(@text, Number newVolume)
                   .then(()=>
-                    env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + newVolume + ", and text " + @text
+                    env.logger.debug 'Playing ' + @text
                     return __("\"%s\" was played ", @text)
                   ).catch((err)=>
                     env.logger.debug "Error in playAnnouncement: " + err
                     return __("\"%s\" was not played", @text)
                   )
+                else
+                  env.logger.debug "Creating sound file... with text: " + @text
+                  @soundsDevice.gtts.save((@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename), @text, (err) =>
+                    env.logger.debug "Error: " + err
+                    if err?
+                      return __("\"%s\" was not generated", @text)
+                    env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
+                    if @volumeVar?
+                      newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
+                      if newVolume?
+                        if newVolume > 100 then newVolume = 100
+                        if newVolume < 0 then newVolume = 0
+                      else
+                        return __("\"%s\" volume variable no value", @text)
+                    else
+                      newVolume = @volume
+                    @soundsDevice.setAnnouncement(@text)
+                    @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number newVolume, @text, @duration)
+                    .then(()=>
+                      env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + newVolume + ", and text " + @text
+                      return __("\"%s\" was played ", @text)
+                    ).catch((err)=>
+                      env.logger.debug "Error in playAnnouncement: " + err
+                      return __("\"%s\" was not played", @text)
+                    )
                 )
               )
             when "file"
@@ -1389,7 +1596,7 @@ module.exports = (env) ->
                 @text = strToLog
                 if @text.indexOf(" ")>=0
                   env.logger.debug "No spaces allowed in filename, rule not executed"
-                  return __("\"%s\" No spaces allowed in filename, rule not executed")
+                  return __("No spaces allowed in filename, rule not executed")
                 if @text.startsWith("http")
                   fullFilename = @text
                 else
@@ -1405,24 +1612,35 @@ module.exports = (env) ->
                 else
                   newVolume = @volume
                 @soundsDevice.setAnnouncement(@text)
-                @soundsDevice.playAnnouncement(fullFilename, Number newVolume, @text, @duration)
-                .then(()=>
-                  env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
-                  return __("\"%s\" was played ", @textIn)
-                ).catch((err)=>
-                  env.logger.debug "Error in playAnnouncement: " + err
-                  return __("\"%s\" was not played", @textIn)
-                )
+                if @soundsDevice.config.class is "GoogleDevice"
+                  @soundsDevice.playFile(fullFilename, Number newVolume)
+                  .then(()=>
+                    env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
+                    return __("\"%s\" was played ", @text)
+                  ).catch((err)=>
+                    env.logger.debug "Error in playAnnouncement: " + err
+                    return __("\"%s\" was not played", @text)
+                  )
+                else 
+                  @soundsDevice.playAnnouncement(fullFilename, Number newVolume, @text, @duration)
+                  .then(()=>
+                    env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
+                    return __("\"%s\" was played ", @text)
+                  ).catch((err)=>
+                    env.logger.debug "Error in playAnnouncement: " + err
+                    return __("\"%s\" was not played", @text)
+                  )
               )
 
             when "vol"
+              @text = "volume set"
               if @volumeVar?
                 newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
                 if newVolume?
                   if newVolume > 100 then newVolume = 100
                   if newVolume < 0 then newVolume = 0
                 else
-                  return __("\"%s\" volume variable no value", @volumeVar)
+                  return __("volume variable does not excist")
               else
                 newVolume = @volume
               @soundsDevice.setVolume(Number newVolume)
@@ -1434,20 +1652,20 @@ module.exports = (env) ->
               )
 
             when "stop"
+              @text = "playing stopped"
               @soundsDevice.stop()
               .then(()=>
-                return __("\"%s\" was stopped")
+                return __("playing was stopped")
               ).catch((err)=>
                 env.logger.debug "Error stopping " + err
-                return __("\"%s\" was not stopped")
+                return __("playing was not stopped")
               )
 
             else
               env.logger.debug 'error: unknown playtype'
               return __("\"%s\" unknown playtype", @soundType)
 
-
-          return __("\"%s\" executed", @text)
+          #return __("\"%s\" executed", @text)
         catch err
           @soundsDevice.deviceStatus = off
           env.logger.debug "Device offline, start onlineChecker " + err

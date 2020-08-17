@@ -75,3 +75,5 @@
 	* update rule engine
 * 20200624, v0.0.48
 	* added stop function
+* 20200817, v0.1.0
+	* added GoogleDevice based on assistant-relay

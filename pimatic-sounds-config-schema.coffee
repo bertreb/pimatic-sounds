@@ -35,4 +35,19 @@ module.exports = {
       description: "The speed of the voice (0.25 to 4.0)"
       type: "number"
       required: false
+    assistantRelay:
+      description: "Enable to use for GoogleDevice (if assistant-relay is installed)"
+      type: "boolean"
+      default: false
+    assistantRelayIp:
+      description: "The IP address of the assistant-relay server"
+      type: "string"
+    assistantRelayPort:
+      description: "The Port number of the assistant-relay server"
+      type: "number"
+      default: 3000
+    assistantRelayUser:
+      description: "The username for assistant-relay"
+      type: "string"
+      default: ""
 }
