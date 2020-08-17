@@ -1,7 +1,7 @@
 # pimatic-sounds
 Pimatic plugin for playing mp3 files and tts sentences on Chromecast and Sonos devices. A typical chromecast device devices is Google Home or a Google chromecast dongle. The Ikea SYMFONISK is a Sonos device. There are 2 options for using Google devices.
 1. Use the Chromecast option (ChromecastDevice). This can be used without any action in the Google cloud. The announcement function works in limited cases (tested only with tuneIn). In some cases the currently playing stream with be stopped when an annoucement is played.
-2. Use the Assistant option (GoogleDevice). In this option an announcement will just pause the currently playing stream and the stream will continue after the announcement. For this option you need to cofigure 'an assistant device' in Google Cloud ([instructions](https://greghesp.github.io/assistant-relay/docs/introduction))
+2. Use the Assistant option (GoogleDevice). In this option an announcement will just pause the currently playing stream and the stream will continue after the announcement. For this option you need to configure 'an assistant device' in Google Cloud ([instructions](https://greghesp.github.io/assistant-relay/docs/introduction))
 
 Install the plugin via the plugin page of Pimatic or add the following in config.json
 ```
