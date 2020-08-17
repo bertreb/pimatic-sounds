@@ -920,7 +920,7 @@ module.exports = (env) ->
               @initSounds()
             @startupTimer = setTimeout(startupTime,20000)
           else
-            #@deviceStatus = off
+            @deviceStatus = off
             @setAttr("status","offline")
             env.logger.debug "Device '#{@id}' offline"
           @onlineCheckerTimer = setTimeout(@onlineChecker,@heatbeatTime)
@@ -937,8 +937,6 @@ module.exports = (env) ->
       super()
 
     initSounds: () =>
-
-
       if @config.playInit or !(@config.playInit?)
         needle('post',@ipCast, @bodyInit, @opts)
         .then((resp)=>
@@ -946,8 +944,6 @@ module.exports = (env) ->
         ).catch((err)=>
           env.logger.debug "Error playing initSounds " + err
         )
-
-      return
 
     setOpts: (ip, port) =>
       @ip = ip
@@ -971,7 +967,7 @@ module.exports = (env) ->
         )
         .catch((err)=>
           env.logger.debug("error playing file handled: " + err)
-          reject("playing file failed")
+          reject("playing file failed, " + err)
         )
       )
 
@@ -987,7 +983,7 @@ module.exports = (env) ->
         )
         .catch((err)=>
           env.logger.debug("error announcement handled: " + err)
-          reject("announcement failed")
+          reject("playing announcement failed, " + err)
         )
       )
 
