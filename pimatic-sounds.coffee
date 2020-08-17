@@ -1031,7 +1031,7 @@ module.exports = (env) ->
       )
 
     destroy: ->
-      @stopCasting()
+      @stop()
       .then(()=>
         try
           #if @statusDevice?
