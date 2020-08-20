@@ -896,6 +896,11 @@ module.exports = (env) ->
         device: @ip
         source: @media.base + "/" + @plugin.initFilename
         type: 'website'
+      @bodyConvers =
+        command: "tell a joke"
+        converse: true
+        user: @assistantRelayUser
+
 
       #
       # Check if Device is online
@@ -920,7 +925,7 @@ module.exports = (env) ->
               @initSounds()
             @startupTimer = setTimeout(startupTime,20000)
           else
-            @deviceStatus = off
+            #@deviceStatus = off
             @setAttr("status","offline")
             env.logger.debug "Device '#{@id}' offline"
           @onlineCheckerTimer = setTimeout(@onlineChecker,@heatbeatTime)
@@ -937,13 +942,155 @@ module.exports = (env) ->
       super()
 
     initSounds: () =>
+
+      
       if @config.playInit or !(@config.playInit?)
+        @setAnnouncement("init")
         needle('post',@ipCast, @bodyInit, @opts)
         .then((resp)=>
           env.logger.debug "StatusCode: " + resp.statuscode
         ).catch((err)=>
           env.logger.debug "Error playing initSounds " + err
         )
+
+      ###
+      #
+      # The sounds states setup
+      #
+      @currentDeviceState = "idle"
+      #@announcement = false
+      @devicePlaying = false
+      @devicePaused = false
+      @deviceReplaying = false
+      @devicePlayingUrl = ""
+      @deviceReplayingUrl = ""
+      @devicePlayingVolume = @mainVolume
+
+      #
+      # The chromecast status listener setup
+      #
+      @statusDevice = new Device()
+      @statusDevice.on 'error', (err) =>
+        if err.message.indexOf("ECONNREFUSED")
+          env.logger.debug "Network config probably changed or device is offline"
+        else if err.message.indexOf("ETIMEDOUT")
+          env.logger.debug "StatusDevice offline"
+        else
+          env.logger.debug "Error in status device " + err.message
+
+      # subscribe to inner client
+      @statusDevice.client.on 'close', () =>
+        @deviceStatus = off
+        env.logger.debug "StatusDevice Client Client closing"
+
+      opts =
+        host: @ip
+        port: @port
+      env.logger.debug "Connecting to statusDevice with opts: " + JSON.stringify(opts,null,2)
+
+      
+      @statusDevice.connect(opts, (err) =>
+        if err?
+          env.logger.debug "Connect error " + err.message
+          return
+        @deviceStatus = on
+        env.logger.info "Device connected"
+
+        if @config.playInit or !(@config.playInit?)
+          @setAnnouncement("init sounds")
+          needle('post',@ipCast, @bodyInit, @opts)
+          .then((resp)=>
+            env.logger.debug "StatusCode: " + resp.statuscode
+          ).catch((err)=>
+            env.logger.debug "Error playing initSounds " + err
+          )
+
+        @statusDevice.on 'status', (_status) =>
+
+          #env.logger.info "statusDevice.on status: " + JSON.stringify(_status,null,2)
+          #
+          # get volume
+          #
+          if _status.volume?.level?
+            @devicePlayingVolume = _status.volume.level
+            @mainVolume = _status.volume.level
+            #env.logger.debug "New mainvolume '" + @devicePlayingVolume + "'' in device '" + @id + "'"
+
+          if @statusDevice?
+            @statusDevice.getSessions((err,sessions) =>
+              if err?
+                env.logger.error "Error getSessions " + err.message
+                return
+              #env.logger.info "Sessions: " + JSON.stringify(sessions,null,2)
+              if sessions.length > 0
+                firstSession = sessions[0]
+                if firstSession.transportId?
+                  #
+                  # Join the chromecast info device
+                  #
+                  lastPlayerState = ""
+                  @statusDevice.join(firstSession, DefaultMediaReceiver, (err, app) =>
+                    if err?
+                      env.logger.error "Join error " + err.message
+                      return
+                    app.on 'status' , (status) =>
+                      #env.logger.info "Debug status " + JSON.stringify(status,null,2)
+                      title = status?.media?.metadata?.title
+                      contentId = status?.media?.contentId
+                      #unless lastPlayerState is status.playerState
+                      #  env.logger.debug "status.playerState: " + status.playerState + ", idleReason: " + status.idleReason
+                      #  lastPlayerState = status.playerState
+                      if status.playerState is "PLAYING"
+                        if contentId
+                          if (status.media.contentId).startsWith(@baseUrl)
+                            #is announcement
+                            #env.logger.debug "Setting announcement: " + @getAnnouncement()
+                            @setAttr "status", "annoucement"
+                            @setAttr "info", @getAnnouncement()
+                            return
+                          else
+                            if (status.media.contentId).startsWith("http")
+                              @devicePlayingUrl = status.media.contentId
+                            @devicePlayingInfo = (if status?.media?.metadata?.title then status.media.metadata.title else "")
+                            @attributes["info"].label = String @devicePlayingInfo
+                            if @devicePlayingInfo.length > 30
+                              @devicePlayingInfo = ((@devicePlayingInfo.substr(0,30)) + " ...")
+                            @devicePlayingMedia = status.media
+                            @setAttr "info", @devicePlayingInfo
+                        @devicePlaying = true
+                        @devicePaused = false
+                        @setAttr "status", "playing"
+                        return
+                      if status.playerState is "IDLE" and status.idleReason is "FINISHED"
+                        @devicePlaying = false
+                        @devicePaused = false
+                        @setAttr "status", "idle"
+                        @setAttr "info", ""
+                        return
+                      if status.playerState is "PAUSED"
+                        #env.logger.debug "PlayerState is PAUSED"
+                        @devicePlaying = true
+                        @devicePaused = true
+                        @setAttr "status", "paused"
+                        #@setAttr "info", ""
+                        return
+                  )
+              else
+                # sessions == 0
+                @devicePlaying = false
+                @devicePaused = false
+                @setAttr "status", "idle"
+                @setAttr "info", ""
+            )
+
+      )
+      ###
+
+    setAnnouncement: (_announcement) =>
+      @announcementText = _announcement
+      #env.logger.debug "Announcement is: " + @announcementText
+    getAnnouncement: () =>
+      return @announcementText
 
     setOpts: (ip, port) =>
       @ip = ip
@@ -977,8 +1124,10 @@ module.exports = (env) ->
 
         @bodyAnnouncement.command = _text
 
+
         needle('post',@ipAssistant, @bodyAnnouncement, @opts)
         .then((resp)=>
+          env.logger.info "Announcement: " + resp.ResponseCode
           resolve()
         )
         .catch((err)=>
@@ -986,6 +1135,57 @@ module.exports = (env) ->
           reject("playing announcement failed, " + err)
         )
       )
+
+    conversation: (_question, _volume) =>
+      return new Promise((resolve,reject) =>
+
+        @bodyConvers.command = _question
+        @bodyConvers.broadcast = false
+        @bodyConvers.converse = false
+
+        #env.logger.debug "Conversation: " + JSON.stringify(@bodyConvers,null,2)
+        needle('post',@ipAssistant, @bodyConvers, @opts)
+        .then((resp)=>
+          #env.logger.info "Converstation response: " + JSON.stringify(resp,null,2)
+          #env.logger.debug "Response received: " + JSON.stringify(resp.body.audio,null,2)
+          if resp.body.audio?
+            _url = @assistantRelayIp + ':' + @assistantRelayPort + resp.body.audio
+            #env.logger.debug "_url: " + _url
+            @playFile(_url, _volume)
+            .then(()=>
+              resolve()
+            )
+            .catch(()=>
+              reject("can play assistant answer")
+            )
+          else
+            reject("no assistant audio answer received")
+        )
+        .catch((err)=>
+          env.logger.debug("error conversation handled: " + err)
+          reject("converstation failed, " + err)
+        )
+      )
+
+    conversationOld: (_question, _volume) =>
+      return new Promise((resolve,reject) =>
+
+        @bodyConvers.command = _question
+
+        #env.logger.debug "Conversation: " + JSON.stringify(@bodyConvers,null,2)
+        needle('post',@ipAssistant, @bodyConvers, @opts)
+        .then((resp)=>
+          #env.logger.info "Converstation response: " + JSON.stringify(resp,null,2)
+          #env.logger.debug "Response received: " + JSON.stringify(resp.body.audio,null,2)
+          resolve()
+        )
+        .catch((err)=>
+          env.logger.debug("error conversation handled: " + err)
+          reject("converstation failed, " + err)
+        )
+      )
+
+
 
     setVolume: (vol) =>
       return new Promise((resolve,reject) =>
@@ -1391,6 +1591,10 @@ module.exports = (env) ->
         soundType = "text"
         text = tokens
         return
+      setAskString = (m, tokens) =>
+        soundType = "ask"
+        text = tokens
+        return
 
       setFilename = (m, tokens) =>
         soundType = "file"
@@ -1468,6 +1672,10 @@ module.exports = (env) ->
           ((m) =>
             return m.match('file ')
               .matchStringWithVars(setFilename)
+          ),
+          ((m) =>
+            return m.match('ask ')
+              .matchStringWithVars(setAskString)
           ),
           ((m) =>
             return m.match('main', (m)=>
@@ -1559,6 +1767,47 @@ module.exports = (env) ->
                   ).catch((err)=>
                     env.logger.debug "Error in playAnnouncement: " + err
                     return __("\"%s\" was not played", @text)
+                  )
+                else
+                  env.logger.debug "Creating sound file... with text: " + @text
+                  @soundsDevice.gtts.save((@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename), @text, (err) =>
+                    env.logger.debug "Error: " + err
+                    if err?
+                      return __("\"%s\" was not generated", @text)
+                    env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
+                    if @volumeVar?
+                      newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
+                      if newVolume?
+                        if newVolume > 100 then newVolume = 100
+                        if newVolume < 0 then newVolume = 0
+                      else
+                        return __("\"%s\" volume variable no value", @text)
+                    else
+                      newVolume = @volume
+                    @soundsDevice.setAnnouncement(@text)
+                    @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number newVolume, @text, @duration)
+                    .then(()=>
+                      env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + newVolume + ", and text " + @text
+                      return __("\"%s\" was played ", @text)
+                    ).catch((err)=>
+                      env.logger.debug "Error in playAnnouncement: " + err
+                      return __("\"%s\" was not played", @text)
+                    )
+                )
+              )
+            when "ask"
+              @framework.variableManager.evaluateStringExpression(@textIn).then( (strToLog) =>
+                @text = strToLog
+                if @soundsDevice.config.class is "GoogleDevice"
+                  # no text to speech conversion needed
+                  #@soundsDevice.setAnnouncement(@text)
+                  @soundsDevice.conversation(@text, Number newVolume)
+                  .then(()=>
+                    env.logger.debug 'Asking ' + @text
+                    return __("\"%s\" was asked ", @text)
+                  ).catch((err)=>
+                    env.logger.debug "Error in conversation: " + err
+                    return __("\"%s\" was not asked", @text)
                   )
                 else
                   env.logger.debug "Creating sound file... with text: " + @text
