@@ -1150,6 +1150,7 @@ module.exports = (env) ->
           #env.logger.debug "Response received: " + JSON.stringify(resp.body.audio,null,2)
           if resp.body.audio?
             _url = @assistantRelayIp + ':' + @assistantRelayPort + resp.body.audio
+            _url = 'http://' + _url unless _url.startsWith('http://')
             #env.logger.debug "_url: " + _url
             @playFile(_url, _volume)
             .then(()=>
