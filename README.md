@@ -107,14 +107,15 @@ In the rules the groups device will be available as an extra play device option.
 The function of a device is controlled via rules
 The ACTION rule syntax is:
 
-**play**  [text|file|main|stop]  ["$variable"|"text for tts"]|["audio filename"|"$variable"]  [**vol** [number|$variable]]  **on**  [ChromecastDevice | SonosDevice | GroupDevice]
+**play**  [text|ask|file|main|stop]  ["$variable"|"text for tts"]|["audio filename"|"$variable"]  [**vol** [number|$variable]]  **on**  [ChromecastDevice | SonosDevice | GroupDevice]
 
 Some examples of command lines are:
 1. **play text** "this is a nice text" **vol** 50 **on** mysoundsdevice
-2. **play file** "nice-music.mp3" **vol** 25 **on** mysoundsdevice
-3. **play file** "$that-funky-music" vol $loud-music **on** mysoundsdevice
-4. **play main** vol $loud-music **on** mysoundsdevice
-5. **play stop on** mysoundsdevice
+2. **play ask** "what's the weather" **on** **GoogleDevice**
+3. **play file** "nice-music.mp3" **vol** 25 **on** mysoundsdevice
+4. **play file** "$that-funky-music" vol $loud-music **on** mysoundsdevice
+5. **play main** vol $loud-music **on** mysoundsdevice
+6. **play stop on** mysoundsdevice
 
 In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sounds is created. You can put mp3 files in that directory. You can create subdirectories in sounds and can use them in the rule.
 
@@ -126,7 +127,9 @@ For the volume variable a number or a variable can be used.
 
 The 'vol [0-100]' after text or file is optional and will override the mainvolume. If not set, the value of the mainvolume is 20.
 
-When a TuneIn stream is playing and Sounds plays a text or file, the TuneIn stream stops and is resumed after the Sounds play is finished.
+When a TuneIn stream is playing and Sounds plays a text or file, the TuneIn stream stops and is resumed after the Sounds play is finished. 
+
+On a GoogleDevice you can ask a question ('play ask ...'). The answer is being played via the GoogleDevice.
 
 ### Credits
 This plugin is build from several existing pieces of software. Sometimes the ideas and sometimes the real pieces of code. To mention are:
