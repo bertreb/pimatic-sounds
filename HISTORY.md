@@ -77,3 +77,5 @@
 	* added stop function
 * 20200817, v0.1.3
 	* added GoogleDevice based on assistant-relay
+* 20200907, v0.1.6
+	* improved error handling

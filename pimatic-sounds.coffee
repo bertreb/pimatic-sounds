@@ -597,9 +597,9 @@ module.exports = (env) ->
                   @stopCasting()
                   .then(() =>
                     env.logger.debug "Casting stopped"
-                    if @deviceReplaying
+                    @announcement = false
+                    if @deviceReplaying and @deviceReplayingUrl?
                       #env.logger.debug "@deviceReplayingUrl: " + @deviceReplayingUrl + ", @deviceReplayingVolume " + @deviceReplayingVolume + ", paused: " + @_devicePaused
-                      @announcement = false
                       @restartPlaying(@deviceReplayingUrl, @deviceReplayingVolume, @_devicePaused)
                       .then(()=>
                         env.logger.debug "Media restarted: " + @deviceReplayingUrl
@@ -735,12 +735,12 @@ module.exports = (env) ->
         device.connect(opts, (err) =>
           if err?
             env.logger.debug "Connect error " + err.message
-            return
+            reject("Connect error " + err.message)
           @deviceStatus = on
           device.launch(DefaultMediaReceiver, (err, app) =>
             if err?
               env.logger.error "Launch error " + err.message
-              return
+              reject("Launch error " + err.message)
             #@_devicePlayer = app
             @_autoplay = not @_pause
             if @_pause
@@ -1127,7 +1127,6 @@ module.exports = (env) ->
 
         needle('post',@ipAssistant, @bodyAnnouncement, @opts)
         .then((resp)=>
-          env.logger.info "Announcement: " + resp.ResponseCode
           resolve()
         )
         .catch((err)=>
@@ -1771,10 +1770,12 @@ module.exports = (env) ->
                   )
                 else
                   env.logger.debug "Creating sound file... with text: " + @text
-                  @soundsDevice.gtts.save((@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename), @text, (err) =>
-                    env.logger.debug "Error: " + err
+                  @soundsDevice.gtts.save((@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename), @text, () =>
+                    ###
                     if err?
+                      env.logger.debug "Error: " + err
                       return __("\"%s\" was not generated", @text)
+                    ###
                     env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
                     if @volumeVar?
                       newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
@@ -1812,10 +1813,10 @@ module.exports = (env) ->
                   )
                 else
                   env.logger.debug "Creating sound file... with text: " + @text
-                  @soundsDevice.gtts.save((@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename), @text, (err) =>
-                    env.logger.debug "Error: " + err
-                    if err?
-                      return __("\"%s\" was not generated", @text)
+                  @soundsDevice.gtts.save((@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename), @text, () =>
+                    #if err?
+                    #  env.logger.debug "Error: " + err
+                    #  return __("\"%s\" was not generated", @text)
                     env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
                     if @volumeVar?
                       newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
@@ -1911,7 +1912,7 @@ module.exports = (env) ->
               env.logger.debug 'error: unknown playtype'
               return __("\"%s\" unknown playtype", @soundType)
 
-          #return __("\"%s\" executed", @text)
+          return __("\"%s\" executed", @text)
         catch err
           @soundsDevice.deviceStatus = off
           env.logger.debug "Device offline, start onlineChecker " + err
