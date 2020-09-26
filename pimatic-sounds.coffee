@@ -568,6 +568,7 @@ module.exports = (env) ->
             #env.logger.debug "Replaying values set, vol: " + @deviceReplayingVolume + ", url: " + @deviceReplayingUrl + ", paused: " + @devicePaused
           else
             @deviceReplaying = false
+            @deviceReplayingUrl = null # @devicePlayingUrl
           defaultMetadata =
             metadataType: 0
             title: "Pimatic Announcement"
@@ -641,24 +642,23 @@ module.exports = (env) ->
                   env.logger.debug "Playing announcement on device '" + @id + "' with volume " + _vol
                   if media.contentType.indexOf("image") >= 0 #if @_duration? and @_duration > 0
                     unless duration? then duration = 5
-                    env.logger.debug "Playing announcement on device '" + @id + ", duration " + duration
+                    #env.logger.debug "Playing announcement on device '" + @id + ", duration " + duration
                     # set durationTimer
-                    setTimeout(=>
-                      @stopCasting()
-                      .then(()=>
-                        env.logger.debug "Annoucement image auto stopped"
-                        if @deviceReplaying and @deviceReplayingUrl?
-                          @restartPlaying(@deviceReplayingUrl, @deviceReplayingVolume, @_devicePaused)
-                          .then(()=>
-                            env.logger.debug "Media restarted: " + @deviceReplayingUrl
-                            resolve()
-                          ).catch((err)=>
-                            env.logger.debug "Error startReplaying " + err
-                            @announcement = false
-                            reject()
-                          )
-                      ).catch((err)=> env.logger.debug "Error in Annouvement imgage auto stop")
-                    , duration * 1000)
+                    ###
+                    @stopCasting()
+                    .then(()=>
+                      if @deviceReplaying and @deviceReplayingUrl?
+                        @restartPlaying(@deviceReplayingUrl, @deviceReplayingVolume, @_devicePaused)
+                        .then(()=>
+                          env.logger.debug "Media restarted: " + @deviceReplayingUrl
+                          resolve()
+                        ).catch((err)=>
+                          env.logger.debug "Error startReplaying " + err
+                          @announcement = false
+                          reject()
+                        )
+                    ).catch((err)=> env.logger.debug "Error in stopCasting")
+                    ###
                 )
               )
             )
@@ -966,7 +966,10 @@ module.exports = (env) ->
         @setAnnouncement("init")
         needle('post',@ipCast, @bodyInit, @opts)
         .then((resp)=>
-          env.logger.debug "StatusCode: " + resp.statuscode
+          setTimeout(=>
+            @stop()
+          ,3000)
+          #env.logger.debug "StatusCode: " + JSON.stringify(resp.body,null,2)
         ).catch((err)=>
           env.logger.debug "Error playing initSounds " + err
         )
@@ -1125,6 +1128,8 @@ module.exports = (env) ->
       return new Promise((resolve,reject) =>
 
         @bodyCast.source = _url
+
+        #_contentType = getContentType(_url)
 
         needle('post',@ipCast, @bodyCast, @opts)
         .then((resp)=>
@@ -1592,7 +1597,7 @@ module.exports = (env) ->
       match = null
       volume = null
       volumeVar = null
-      duration = 10
+      duration = 30
       durationVar = null
       soundType = ""
 
@@ -1875,7 +1880,7 @@ module.exports = (env) ->
                   newVolume = @volume
                 @soundsDevice.setAnnouncement(@text)
                 _duration = @duration
-                env.logger.info "@soundsDevice @_duration " + _duration
+                #env.logger.info "@soundsDevice @_duration " + _duration
                 if @soundsDevice.config.class is "GoogleDevice"
                   @soundsDevice.playFile(fullFilename, Number newVolume)
                   .then(()=>

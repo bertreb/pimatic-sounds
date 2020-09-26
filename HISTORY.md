@@ -81,3 +81,5 @@
 	* improved error handling
 * 20200926, v0.1.7
 	* set duration picture announcement
+* 20200926, v0.1.8
+	* pictures must be swipped off
