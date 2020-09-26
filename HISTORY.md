@@ -79,3 +79,5 @@
 	* added GoogleDevice based on assistant-relay
 * 20200907, v0.1.6
 	* improved error handling
+* 20200926, v0.1.7
+	* set duration picture announcement

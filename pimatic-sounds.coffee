@@ -520,6 +520,7 @@ module.exports = (env) ->
       return new Promise((resolve,reject) =>
 
         @announcement = true
+        #@_duration = _duration
         #unless @gaDevice?
         #  reject("Device not online")
         #  return
@@ -565,6 +566,8 @@ module.exports = (env) ->
             @deviceReplayingVolume = @devicePlayingVolume
             @deviceReplayingMedia = @devicePlayingMedia
             #env.logger.debug "Replaying values set, vol: " + @deviceReplayingVolume + ", url: " + @deviceReplayingUrl + ", paused: " + @devicePaused
+          else
+            @deviceReplaying = false
           defaultMetadata =
             metadataType: 0
             title: "Pimatic Announcement"
@@ -577,6 +580,8 @@ module.exports = (env) ->
             contentType: getContentType(_url)
             streamType: 'BUFFERED'
             metadata: defaultMetadata
+
+          duration = _duration
 
           try
             device.launch(DefaultMediaReceiver, (err, app) =>
@@ -632,15 +637,28 @@ module.exports = (env) ->
                     reject(err)
                     return
                   @announcement = false
+                  #@_duration = 5
                   env.logger.debug "Playing announcement on device '" + @id + "' with volume " + _vol
-                  if _duration? or _duration > 0
+                  if media.contentType.indexOf("image") >= 0 #if @_duration? and @_duration > 0
+                    unless duration? then duration = 5
+                    env.logger.debug "Playing announcement on device '" + @id + ", duration " + duration
                     # set durationTimer
                     setTimeout(=>
                       @stopCasting()
                       .then(()=>
                         env.logger.debug "Annoucement image auto stopped"
+                        if @deviceReplaying and @deviceReplayingUrl?
+                          @restartPlaying(@deviceReplayingUrl, @deviceReplayingVolume, @_devicePaused)
+                          .then(()=>
+                            env.logger.debug "Media restarted: " + @deviceReplayingUrl
+                            resolve()
+                          ).catch((err)=>
+                            env.logger.debug "Error startReplaying " + err
+                            @announcement = false
+                            reject()
+                          )
                       ).catch((err)=> env.logger.debug "Error in Annouvement imgage auto stop")
-                    ,_duration * 1000)
+                    , duration * 1000)
                 )
               )
             )
@@ -1119,11 +1137,10 @@ module.exports = (env) ->
       )
 
 
-    playAnnouncement: (_text, _volume) =>
+    playAnnouncement: (_text, _volume) => 
       return new Promise((resolve,reject) =>
 
         @bodyAnnouncement.command = _text
-
 
         needle('post',@ipAssistant, @bodyAnnouncement, @opts)
         .then((resp)=>
@@ -1501,7 +1518,7 @@ module.exports = (env) ->
       @gtts = @plugin.gtts
       super()
 
-    playAnnouncement: (_url, _vol, _text) =>
+    playAnnouncement: (_url, _vol, _text, _duration) =>
       return new Promise((resolve,reject) =>
         #env.logger.info "@framework.deviceManager.getDeviceById(@id) " + JSON.stringify((@framework.deviceManager.getDeviceById(@id)).config.devices,null,2)
         for _dev in (@framework.deviceManager.getDeviceById(@id)).config.devices
@@ -1575,7 +1592,7 @@ module.exports = (env) ->
       match = null
       volume = null
       volumeVar = null
-      duration = 0
+      duration = 10
       durationVar = null
       soundType = ""
 
@@ -1645,7 +1662,7 @@ module.exports = (env) ->
           context?.addError("Duration must be mimimal 1 second")
         if dur >120
           context?.addError("Duration can be maximal 120 seconds")
-        duration = duration
+        duration = dur
         return
 
       setDurationVar = (m, tokens) =>
@@ -1740,12 +1757,10 @@ module.exports = (env) ->
 
     constructor: (@framework, @actionProvider, @textIn, @soundType, @soundsDevice, @volume, @volumeVar, @duration) ->
 
-
     executeAction: (simulate) =>
       if simulate
         return __("would save file \"%s\"", @textIn)
       else
-        #env.logger.info "@soundsDevice.deviceStatus " + @soundsDevice.name
         if @soundsDevice.deviceStatus is off
           if @soundType is "text" or @soundType is "file"
             return __("Rule not executed device offline")
@@ -1787,7 +1802,7 @@ module.exports = (env) ->
                     else
                       newVolume = @volume
                     @soundsDevice.setAnnouncement(@text)
-                    @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number newVolume, @text, @duration)
+                    @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number newVolume, @text, @_duration)
                     .then(()=>
                       env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + newVolume + ", and text " + @text
                       return __("\"%s\" was played ", @text)
@@ -1859,6 +1874,8 @@ module.exports = (env) ->
                 else
                   newVolume = @volume
                 @soundsDevice.setAnnouncement(@text)
+                _duration = @duration
+                env.logger.info "@soundsDevice @_duration " + _duration
                 if @soundsDevice.config.class is "GoogleDevice"
                   @soundsDevice.playFile(fullFilename, Number newVolume)
                   .then(()=>
@@ -1868,10 +1885,10 @@ module.exports = (env) ->
                     env.logger.debug "Error in playAnnouncement: " + err
                     return __("\"%s\" was not played", @text)
                   )
-                else 
-                  @soundsDevice.playAnnouncement(fullFilename, Number newVolume, @text, @duration)
+                else
+                  @soundsDevice.playAnnouncement(fullFilename, (Number newVolume), @text, @duration)
                   .then(()=>
-                    env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
+                    env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume + ", _duration " + @duration
                     return __("\"%s\" was played ", @text)
                   ).catch((err)=>
                     env.logger.debug "Error in playAnnouncement: " + err
