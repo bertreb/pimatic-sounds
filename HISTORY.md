@@ -85,3 +85,5 @@
 	* pictures must be swipped off
 * 20200928, v0.1.9
 	* added duration in play file
+* 20200928, v0.1.10
+	* configurable sounds directory

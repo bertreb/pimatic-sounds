@@ -14,6 +14,7 @@ After installation and restart activate the plugin and add the following to the 
 {
   "port": 8088,     // or the port you like and is free
   "language": "en", // or your own language
+  "soundsDirectory": "directory for sounds, defaults is '/sounds' in pimatic home directory"
   "tts": ["google-translate","google-cloud"] // select tts engine
   "googleCloudJson": "<if tts engine is google-cloud the filename of the credential json file>" // incl .json extension
   "voice": "The name of the voice, format is <language-code>-Standard-[A,B,C,D]"

@@ -65,22 +65,24 @@ module.exports = (env) ->
   class SoundsPlugin extends env.plugins.Plugin
     init: (app, @framework, @config) =>
 
-      @soundsDir = path.resolve @framework.maindir, '../..', 'sounds'
+      defaultSounds = @config.soundsDirectory ? 'sounds'
+      @soundsDir = path.resolve @framework.maindir, '../..', defaultSounds
       @pluginDir = path.resolve @framework.maindir, "../pimatic-sounds"
       @pimaticDir = path.resolve @framework.maindir, '../..'
+
+
 
       @initFilename = "initSound.mp3"
       if !fs.existsSync(@soundsDir)
         env.logger.debug "Dir " + @soundsDir + " doesn't exist, is created"
         fs.mkdirSync(@soundsDir)
-      else
-        fullFilename = @soundsDir + "/" + @initFilename
-        unless fs.existsSync(fullFilename)
-          sourceInitFullfinename = @pluginDir + "/" + @initFilename
-          fs.copyFile sourceInitFullfinename, fullFilename, (err) =>
-            if err
-              env.logger.error "InitSounds not copied " + err
-            env.logger.debug "InitSounds copied to sounds directory"
+      fullFilename = @soundsDir + "/" + @initFilename
+      unless fs.existsSync(fullFilename)
+        sourceInitFullfinename = @pluginDir + "/" + @initFilename
+        fs.copyFile sourceInitFullfinename, fullFilename, (err) =>
+          if err
+            env.logger.error "InitSounds not copied " + err
+          env.logger.debug "InitSounds copied to sounds directory"
 
       # init text to speech
       switch @config.tts

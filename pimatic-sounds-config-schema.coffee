@@ -3,14 +3,18 @@ module.exports = {
   title: "pimatic-sounds configuration options"
   type: "object"
   properties:
-  	port:
-  	  descpription: "The port number of the chromecast device"
-  	  type: "number"
-  	  default: 8088
-  	language:
-  	  descpription: "The language used in text-to-speech"
-  	  type: "string"
-  	  default: "en"
+    port:
+      descpription: "The port number of the chromecast device"
+      type: "number"
+      default: 8088
+    language:
+      descpription: "The language used in text-to-speech"
+      type: "string"
+      default: "en"
+    soundsDirectory:
+      descpription: "The directory used for the sounds. Default sounds directory in pimatic home folder /sounds"
+      type: "string"
+      default: "sounds"      
     debug:
       description: "Debug mode. Writes debug messages to the pimatic log, if set to true."
       type: "boolean"
