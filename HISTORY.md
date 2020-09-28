@@ -83,3 +83,5 @@
 	* set duration picture announcement
 * 20200926, v0.1.8
 	* pictures must be swipped off
+* 20200928, v0.1.9
+	* added duration in play file

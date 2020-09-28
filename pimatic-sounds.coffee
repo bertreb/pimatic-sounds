@@ -16,6 +16,51 @@ module.exports = (env) ->
   getContentType = require('./content-types.js')
   bonjour = require('bonjour')()
   needle = require('needle')
+  #ps = require 'python-shell'
+  #childProcess = require("child_process")
+
+  ###
+  exec = (command) ->
+    return new Promise( (resolve, reject) ->
+      childProcess.exec(command, (err, stdout, stderr) ->
+        if err
+          err.stdout = stdout.toString() if stdout?
+          err.stderr = stderr.toString() if stderr?
+          return reject(err)
+
+        #_result = toJson(stdout)
+        return resolve({stdout: stdout.toString(), stderr: stderr.toString()}) # {stdout: stdout, stderr: stderr})
+      )
+    )
+
+  toJson = (str) ->
+    result = {}
+    lines = str.split('\n')
+    if lines.length < 1
+      return str
+    for line in lines
+      _index = line.indexOf(":")
+      _key = line.substring(0,_index).trim().toLowerCase()
+      result[_key] = ""
+      _value = line.substring(_index+1,line.length).trim().toLowerCase()
+      unless _value is ""
+        unless Number.isNaN(Number _value)
+          _value = Number _value
+        if (String _value).toLowerCase() in ["false","true"]
+          _value =  Boolean (String _value).toLowerCase()
+        if (String _value).toLowerCase() in ["none"]
+          _value =  null
+        if (String _value).length >= 2
+          _valueStripped = String _value # (String _value).substring(1, (String _value).length-1)
+          env.logger.debug "_valueStripped " + _valueStripped
+          if _valueStripped is "{}"
+            _value =  {}
+          else if _valueStripped is "[]"
+            _value = []
+
+        result[_key] = _value
+    return result
+  ###
 
   class SoundsPlugin extends env.plugins.Plugin
     init: (app, @framework, @config) =>
@@ -273,6 +318,10 @@ module.exports = (env) ->
       @deviceStatus = off
       @textFilename = @id + "_text.mp3"
 
+      @current =
+        url: ""
+        volume: 0
+
 
       #
       # Configure attributes
@@ -451,7 +500,7 @@ module.exports = (env) ->
                       title = status?.media?.metadata?.title
                       contentId = status?.media?.contentId
                       #unless lastPlayerState is status.playerState
-                      #  env.logger.debug "status.playerState: " + status.playerState + ", idleReason: " + status.idleReason
+                      # env.logger.debug "status.playerState: " + status.playerState + ", idleReason: " + status.idleReason
                       #  lastPlayerState = status.playerState
                       if status.playerState is "PLAYING"
                         if contentId
@@ -474,7 +523,7 @@ module.exports = (env) ->
                         @devicePaused = false
                         @setAttr "status", "playing"
                         return
-                      if status.playerState is "IDLE" and status.idleReason is "FINISHED"
+                      if status.playerState is "IDLE" and status.idleReason is "FINISHED" and not @announcement
                         @devicePlaying = false
                         @devicePaused = false
                         @setAttr "status", "idle"
@@ -518,6 +567,55 @@ module.exports = (env) ->
 
     playAnnouncement: (_url, _vol, _text, _duration) =>
       return new Promise((resolve,reject) =>
+
+      
+        @_volume = _vol * 100 if _vol < 1
+        #save current status
+        ###
+        exec('catt -d '+@ip+' info -j')
+        .then((resp)=>
+          try 
+            _data = JSON.parse(resp.stdout)
+          catch e
+            _data = resp.stdout
+          env.logger.debug "Debug catt info: " + resp
+          env.logger.debug "Debug catt info: " + JSON.stringify(_data,null,2)
+          @current.url = _data.content_id
+          @current.volume = _data.volume_level
+        )
+        .catch((err)=>
+          env.logger.debug "Error catt info " + err
+        )
+
+        .then((resp)=>
+          env.logger.debug "stdout: #{resp.stdout}"
+          env.logger.debug "stderr: #{resp.stderr}"
+          env.logger.debug "Result: " + JSON.stringify(resp.stdout,null,2)
+          return exec('catt volume ' + @_volume)
+        )
+        .then((resp)=>
+          if @current.url?
+            env.logger.debug "Start current track"
+            return exec('catt cast_site ' + @current.url)
+          else
+            resolve()
+        )
+        .then((resp)=>
+          env.logger.debug "Set volume back to current"
+          return exec('catt volume ' + @current.volume)
+        )
+        .then((resp)=>
+          resolve()
+        )
+        .catch((err)=>
+          reject(err)
+        )
+
+        #restore current status
+
+        return
+
+        ###
 
         @announcement = true
         #@_duration = _duration
@@ -582,6 +680,8 @@ module.exports = (env) ->
             streamType: 'BUFFERED'
             metadata: defaultMetadata
 
+          # check if file exists, tbd
+
           duration = _duration
 
           try
@@ -600,12 +700,13 @@ module.exports = (env) ->
                   #@currentDeviceState = "idle"
                   @setAttr "status", "idle"
                   @setAttr "info", ""
+                
                   @stopCasting()
                   .then(() =>
                     env.logger.debug "Casting stopped"
-                    @announcement = false
+                    @announcement = false        
                     if @deviceReplaying and @deviceReplayingUrl?
-                      #env.logger.debug "@deviceReplayingUrl: " + @deviceReplayingUrl + ", @deviceReplayingVolume " + @deviceReplayingVolume + ", paused: " + @_devicePaused
+                      env.logger.debug("@deviceReplaying " + (@deviceReplaying) + ", @deviceReplayingUrl: " + @deviceReplayingUrl + ", @deviceReplayingVolume " + @deviceReplayingVolume + ", paused: " + @_devicePaused)
                       @restartPlaying(@deviceReplayingUrl, @deviceReplayingVolume, @_devicePaused)
                       .then(()=>
                         env.logger.debug "Media restarted: " + @deviceReplayingUrl
@@ -629,6 +730,7 @@ module.exports = (env) ->
                     reject()
                     return
                   )
+        
               #@_devicePlayer = app
               @setVolume(_vol)
               .then(()=>
@@ -638,27 +740,24 @@ module.exports = (env) ->
                     reject(err)
                     return
                   @announcement = false
-                  #@_duration = 5
-                  env.logger.debug "Playing announcement on device '" + @id + "' with volume " + _vol
-                  if media.contentType.indexOf("image") >= 0 #if @_duration? and @_duration > 0
-                    unless duration? then duration = 5
-                    #env.logger.debug "Playing announcement on device '" + @id + ", duration " + duration
-                    # set durationTimer
-                    ###
-                    @stopCasting()
-                    .then(()=>
-                      if @deviceReplaying and @deviceReplayingUrl?
-                        @restartPlaying(@deviceReplayingUrl, @deviceReplayingVolume, @_devicePaused)
-                        .then(()=>
-                          env.logger.debug "Media restarted: " + @deviceReplayingUrl
-                          resolve()
-                        ).catch((err)=>
-                          env.logger.debug "Error startReplaying " + err
-                          @announcement = false
-                          reject()
-                        )
-                    ).catch((err)=> env.logger.debug "Error in stopCasting")
-                    ###
+                  if duration?
+                    env.logger.debug "Playing announcement on device '" + @id + ", duration " + duration
+                    @durationTimer = setTimeout(() =>
+                      @stopCasting()
+                      .then(()=>
+                        env.logger.debug("@deviceReplaying " + (@deviceReplaying) + ", @deviceReplayingUrl: " + @deviceReplayingUrl + ", @deviceReplayingVolume " + @deviceReplayingVolume + ", paused: " + @_devicePaused)                    
+                        if @deviceReplaying and @deviceReplayingUrl?
+                          @restartPlaying(@deviceReplayingUrl, @deviceReplayingVolume, @_devicePaused)
+                          .then(()=>
+                            env.logger.debug "Media restarted: " + @deviceReplayingUrl
+                            resolve()
+                          ).catch((err)=>
+                            env.logger.debug "Error startReplaying " + err
+                            @announcement = false
+                            reject()
+                          )
+                      ).catch((err)=> env.logger.debug "Error in stopCasting " + err)
+                    , duration)
                 )
               )
             )
@@ -715,7 +814,7 @@ module.exports = (env) ->
             reject()
           )
         catch err
-          env.logger.error "Error in stopCasting " + err
+          env.logger.error "Catched Error in stopCasting " + err
           reject()
       )
 
@@ -831,15 +930,13 @@ module.exports = (env) ->
     destroy: ->
       @stopCasting()
       .then(()=>
-        try
-          #if @statusDevice?
-          #  @statusDevice.close()
-          #  @statusDevice.removeAllListeners()
-        catch err
-          env.logger.debug "Destroy error handled " + err
         clearTimeout(@onlineCheckerTimer)
         clearTimeout(@startupTimer)
+        clearTimeout(@durationTimer)
       ).catch((err)=>
+        clearTimeout(@onlineCheckerTimer)
+        clearTimeout(@startupTimer)
+        clearTimeout(@durationTimer)
         env.logger.debug "Error in Destroy stopcasting " + err
       )
       super()
@@ -1124,7 +1221,7 @@ module.exports = (env) ->
 
         #env.logger.debug "Set attribute '#{attr}' to '#{_status}'"
 
-    playFile: (_url, _volume) =>
+    playFile: (_url, _volume, _duration) =>
       return new Promise((resolve,reject) =>
 
         @bodyCast.source = _url
@@ -1133,6 +1230,10 @@ module.exports = (env) ->
 
         needle('post',@ipCast, @bodyCast, @opts)
         .then((resp)=>
+          if _duration?
+            @durationTimer = setTimeout(()=>
+              @stop()
+            , _duration)
           resolve()
         )
         .catch((err)=>
@@ -1580,7 +1681,7 @@ module.exports = (env) ->
 
     constructor: (@framework, @soundsClasses, @dir) ->
       @root = @dir
-      @mainVolume = 20
+      @mainVolume = 30
 
     _soundsClasses: (_cl) =>
       for _soundsClass in @soundsClasses
@@ -1597,7 +1698,7 @@ module.exports = (env) ->
       match = null
       volume = null
       volumeVar = null
-      duration = 30
+      duration = null
       durationVar = null
       soundType = ""
 
@@ -1662,13 +1763,13 @@ module.exports = (env) ->
         volumeVar = tokens
         return
 
-      setDuration = (m, dur) =>
-        if dur < 1
-          context?.addError("Duration must be mimimal 1 second")
-        if dur >120
-          context?.addError("Duration can be maximal 120 seconds")
-        duration = dur
-        return
+      setDuration = (m, {time, unit, timeMs}) =>
+        #if time < 1
+        #  context?.addError("Duration must be mimimal 1 second")
+        #if time >500
+        #  context?.addError("Duration can be maximal 500 seconds")
+        duration = timeMs
+        match = m.getFullMatch()
 
       setDurationVar = (m, tokens) =>
         durationVar = tokens
@@ -1743,6 +1844,14 @@ module.exports = (env) ->
               )
           )
         ])
+        .match(' for ', optional: yes, (m)=>
+          m.matchTimeDuration(wildcard: "{duration}", type: "text", (m, {time, unit, timeMs}) =>
+            duration = timeMs
+            match = m.getFullMatch()
+          )
+        )
+
+      #match = m.getFullMatch()
 
       unless volume?
         volume = @mainVolume
@@ -1882,7 +1991,7 @@ module.exports = (env) ->
                 _duration = @duration
                 #env.logger.info "@soundsDevice @_duration " + _duration
                 if @soundsDevice.config.class is "GoogleDevice"
-                  @soundsDevice.playFile(fullFilename, Number newVolume)
+                  @soundsDevice.playFile(fullFilename, (Number newVolume), @duration)
                   .then(()=>
                     env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
                     return __("\"%s\" was played ", @text)
