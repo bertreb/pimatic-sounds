@@ -87,3 +87,5 @@
 	* added duration in play file
 * 20200928, v0.1.10
 	* configurable sounds directory
+* 20200929, v0.1.11
+	* edits on replaying media
