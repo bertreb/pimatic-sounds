@@ -89,5 +89,5 @@
 	* configurable sounds directory
 * 20200929, v0.1.11
 	* edits on replaying media
-* 20200929, v0.1.12
+* 20200929, v0.1.13
 	* add replay for GoogleDevice

@@ -502,6 +502,7 @@ module.exports = (env) ->
                       env.logger.error "Join error " + err.message
                       return
                     app.on 'status' , (status) =>
+                      #env.logger.info "Status update, media: " + JSON.stringify(status.media,null,2)
                       title = status?.media?.metadata?.title
                       contentId = status?.media?.contentId
                       if status.playerState is "PLAYING" or status.playerState is "BUFFERING" or status.playerState is "IDLE" or status.playerState is "PAUSED"
@@ -701,7 +702,7 @@ module.exports = (env) ->
               )
             )
           catch err
-            env.logger.debug "Error in launcing device, " + err.message
+            env.logger.debug "Error in launching device, " + err.message
             @announcement = false
             reject(err)
             return
@@ -786,7 +787,7 @@ module.exports = (env) ->
             #images: [
             #  { url: "https://avatars0.githubusercontent.com/u/6502361?v=3&s=20" }
             #],
-          _media["metadata"] = defaultMetadata
+          _media["metadata"] = @deviceReplayingMedia?.metadata # defaultMetadata
 
         device.connect(opts, (err) =>
           if err?
@@ -865,7 +866,6 @@ module.exports = (env) ->
         )
       )
 
-
     destroy: ->
       @stopCasting()
       .then(()=>
@@ -890,7 +890,6 @@ module.exports = (env) ->
 
       @deviceStatus = off
       @textFilename = @id + "_text.mp3"
-
 
       #
       # Configure attributes
