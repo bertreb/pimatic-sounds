@@ -91,3 +91,5 @@
 	* edits on replaying media
 * 20200929, v0.1.13
 	* add replay for GoogleDevice
+* 20200929, v0.1.14
+	* edit package

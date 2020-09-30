@@ -18,7 +18,6 @@ module.exports = (env) ->
   needle = require('needle')
   #ps = require 'python-shell'
   childProcess = require("child_process")
-  {Howl,Howler} = require('howler')
 
   exec = (command) ->
     return new Promise( (resolve, reject) ->
