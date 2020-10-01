@@ -93,5 +93,5 @@
 	* add replay for GoogleDevice
 * 20200929, v0.1.14
 	* edit package
-* 20201001, v0.1.15
+* 20201001, v0.1.16
 	* add ask option for ChromecastDevice

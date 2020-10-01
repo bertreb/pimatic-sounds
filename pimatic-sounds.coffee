@@ -470,6 +470,10 @@ module.exports = (env) ->
         port: @port
       env.logger.debug "Connecting to statusDevice with opts: " + JSON.stringify(opts,null,2)
 
+      @opts =
+        json: true
+        headers: {'Content-Type': 'application/json;charset=UTF-8'}
+
       @bodyInit =
         device: @ip
         source: @media.base + "/" + @plugin.initFilename
@@ -747,6 +751,8 @@ module.exports = (env) ->
         @bodyConvers.command = _question
         @bodyConvers.broadcast = false
         @bodyConvers.converse = false
+
+        env.logger.debug "@bodyConvers: " + JSON.stringify(@bodyConvers,null,2)
 
         needle('post',@ipAssistant, @bodyConvers, @opts)
         .then((resp)=>
