@@ -318,6 +318,16 @@ module.exports = (env) ->
 
       if @_destroyed then return
 
+      if @plugin.config.assistantRelay 
+        @assistantRelay = true
+      else
+        @assistantRelay = false
+
+      @assistantRelayIp = @plugin.config.assistantRelayIp
+      @assistantRelayPort = @plugin.config.assistantRelayPort ? 3000
+      @assistantRelayUser = @plugin.config.assistantRelayUser
+
+
       @deviceStatus = off
       @textFilename = @id + "_text.mp3"
 
@@ -451,10 +461,31 @@ module.exports = (env) ->
         @deviceStatus = off
         env.logger.debug "StatusDevice Client Client closing"
 
+      @ipCast = @assistantRelayIp + ':' + @assistantRelayPort + '/cast'
+      @ipCastStop = @ipCast + '/stop'
+      @ipAssistant = @assistantRelayIp + ':' + @assistantRelayPort + '/assistant'  
+
       opts =
         host: @ip
         port: @port
       env.logger.debug "Connecting to statusDevice with opts: " + JSON.stringify(opts,null,2)
+
+      @bodyInit =
+        device: @ip
+        source: @media.base + "/" + @plugin.initFilename
+        type: 'remote'
+      @bodyAnnouncement = 
+        command: "no text yet"
+        broadcast: true
+        user: @assistantRelayUser
+      @bodyCast = 
+        device: @ip
+        source: @media.base + "/" + @plugin.initFilename
+        type: 'remote'
+      @bodyConvers =
+        command: "tell a joke"
+        converse: true
+        user: @assistantRelayUser
 
       @statusDevice.connect(opts, (err) =>
         if err?
@@ -521,6 +552,8 @@ module.exports = (env) ->
                               @devicePlayingInfo = ((@devicePlayingInfo.substr(0,30)) + " ...")
                             @devicePlayingMedia = status.media
                             @setAttr "info", @devicePlayingInfo
+                            if status.media?.duration?
+                              @duration = status.media.duration * 1000
                         @devicePlaying = if (status.playerState is "PLAYING" or status.playerState is "BUFFERING") then true else false
                         @devicePaused = if status.playerState is "PAUSED" then true else false
                         @setAttr "status", status.playerState.toLowerCase()
@@ -708,6 +741,110 @@ module.exports = (env) ->
         )
       )
 
+    conversation: (_question, _volume) =>
+      return new Promise((resolve,reject) =>
+
+        @bodyConvers.command = _question
+        @bodyConvers.broadcast = false
+        @bodyConvers.converse = false
+
+        needle('post',@ipAssistant, @bodyConvers, @opts)
+        .then((resp)=>
+          #env.logger.debug "Convers response: " + JSON.stringify(resp.body,null,2)
+          if resp.body.audio?
+            _url = @assistantRelayIp + ':' + @assistantRelayPort + resp.body.audio
+            _url = 'http://' + _url unless _url.startsWith('http://')
+            @playFile(_url, _volume)
+            .then(()=>
+              resolve()
+            )
+            .catch(()=>
+              reject("can play assistant answer")
+            )
+          else
+            reject("no assistant audio answer received")
+        )
+        .catch((err)=>
+          env.logger.debug("error conversation handled: " + err)
+          reject("converstation failed, " + err)
+        )
+      )
+
+    playFile: (_url, _volume, _duration) =>
+      return new Promise((resolve,reject) =>
+
+        @bodyCast.source = _url
+        if @devicePlaying
+          @deviceReplaying = true
+          @deviceReplayingUrl = @devicePlayingUrl
+          @deviceReplayingInfo = @devicePlayingInfo
+          @deviceReplayingVolume = @devicePlayingVolume
+          @deviceReplayingMedia = @devicePlayingMedia
+          @deviceReplayingPaused = @devicePaused
+          #env.logger.debug "Replaying values set, vol: " + @deviceReplayingVolume + ", url: " + @deviceReplayingUrl + ", paused: " + @devicePaused
+        else
+          @deviceReplaying = false
+          @deviceReplayingUrl = null # @devicePlayingUrl
+
+        #_contentType = getContentType(_url)
+
+        #needle('post',@ipCast, @bodyCast, @opts)
+        _command = "catt -d #{@ip} cast " + _url
+        exec(_command)
+        .then((resp)=>
+          env.logger.debug "Cast " + _url
+          return @setVolume(_volume)
+        )
+        .then(()=>
+          unless _duration?
+            _duration = @duration
+          env.logger.debug "Cast for " + _duration
+          if _duration?
+            @durationTimer = setTimeout(()=>
+              env.logger.debug "Cast ends"
+              @stop()
+              if @deviceReplaying
+                @replayFile(@deviceReplayingUrl, @deviceReplayingVolume, @deviceReplayingPaused)
+                .then(()=>
+                  resolve()
+                )
+                .catch((err)=>
+                  env.logger.debug "Error replaying"
+                  reject()
+                )
+            , _duration)
+          resolve()
+        )
+        .catch((err)=>
+          env.logger.debug("error playing file handled: " + err)
+          reject("playing file failed, " + err)
+        )
+      )
+
+    replayFile: (_url, _volume, _paused) =>
+      return new Promise((resolve,reject) =>
+
+        env.logger.debug "replaying, url " + _url + ", vol " + _volume + ", pause? " + _paused
+        @bodyCast.source = _url
+        _command = "catt -d #{@ip} cast " + _url
+        #exec(_command)
+        needle('post',@ipCast, @bodyCast, @opts)
+        .then((resp)=>
+          env.logger.debug "Restart Cast " + _url
+          return @setVolume(_volume)
+        )
+        .then(()=>          
+          return exec("catt -d #{@ip} pause") if _paused
+        )
+        .finally(()=>
+          resolve()
+        )
+        .catch((err)=>
+          env.logger.debug("error playing file handled: " + err)
+          reject("playing file failed, " + err)
+        )
+      )
+
     stopCasting: () =>
       return new Promise((resolve,reject) =>
         client = new Device()
@@ -886,6 +1023,11 @@ module.exports = (env) ->
       @name = @config.name
 
       if @_destroyed then return
+
+      if @plugin.config.assistantRelay 
+        @assistantRelay = true
+      else
+        @assistantRelay = false
 
       @deviceStatus = off
       @textFilename = @id + "_text.mp3"
@@ -1862,6 +2004,16 @@ module.exports = (env) ->
             when "text"
               @framework.variableManager.evaluateStringExpression(@textIn).then( (strToLog) =>
                 @text = strToLog
+                if @volumeVar?
+                  newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
+                  if newVolume?
+                    if newVolume > 100 then newVolume = 100
+                    if newVolume < 0 then newVolume = 0
+                  else
+                    return __("\"%s\" volume variable no value", @text)
+                else
+                  newVolume = @volume
+
                 if @soundsDevice.config.class is "GoogleDevice"
                   # no text to speech conversion needed
                   #@soundsDevice.setAnnouncement(@text)
@@ -1882,15 +2034,6 @@ module.exports = (env) ->
                       return __("\"%s\" was not generated", @text)
                     ###
                     env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
-                    if @volumeVar?
-                      newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
-                      if newVolume?
-                        if newVolume > 100 then newVolume = 100
-                        if newVolume < 0 then newVolume = 0
-                      else
-                        return __("\"%s\" volume variable no value", @text)
-                    else
-                      newVolume = @volume
                     @soundsDevice.setAnnouncement(@text)
                     @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number newVolume, @text, @_duration)
                     .then(()=>
@@ -1905,7 +2048,17 @@ module.exports = (env) ->
             when "ask"
               @framework.variableManager.evaluateStringExpression(@textIn).then( (strToLog) =>
                 @text = strToLog
-                if @soundsDevice.config.class is "GoogleDevice"
+                if @volumeVar?
+                  newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
+                  if newVolume?
+                    if newVolume > 100 then newVolume = 100
+                    if newVolume < 0 then newVolume = 0
+                  else
+                    return __("\"%s\" volume variable no value", @text)
+                else
+                  newVolume = @volume
+                #if @soundsDevice.config.class is "GoogleDevice"
+                if @soundsDevice.assistantRelay? and @soundsDevice.assistantRelay
                   # no text to speech conversion needed
                   #@soundsDevice.setAnnouncement(@text)
                   @soundsDevice.conversation(@text, Number newVolume)
@@ -1923,15 +2076,6 @@ module.exports = (env) ->
                     #  env.logger.debug "Error: " + err
                     #  return __("\"%s\" was not generated", @text)
                     env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
-                    if @volumeVar?
-                      newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
-                      if newVolume?
-                        if newVolume > 100 then newVolume = 100
-                        if newVolume < 0 then newVolume = 0
-                      else
-                        return __("\"%s\" volume variable no value", @text)
-                    else
-                      newVolume = @volume
                     @soundsDevice.setAnnouncement(@text)
                     @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number newVolume, @text, @duration)
                     .then(()=>
