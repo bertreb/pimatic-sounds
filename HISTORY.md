@@ -95,3 +95,5 @@
 	* edit package
 * 20201001, v0.1.16
 	* add ask option for ChromecastDevice
+* 20201007, v0.1.17
+	* remove initSounds on reconnect

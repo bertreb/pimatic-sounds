@@ -329,6 +329,7 @@ module.exports = (env) ->
 
 
       @deviceStatus = off
+      @deviceReconnecting = false
       @textFilename = @id + "_text.mp3"
 
       @current =
@@ -449,6 +450,7 @@ module.exports = (env) ->
       #
       @statusDevice = new Device()
       @statusDevice.on 'error', (err) =>
+        @deviceReconnecting = true
         if err.message.indexOf("ECONNREFUSED")
           env.logger.debug "Network config probably changed or device is offline"
         else if err.message.indexOf("ETIMEDOUT")
@@ -459,6 +461,7 @@ module.exports = (env) ->
       # subscribe to inner client
       @statusDevice.client.on 'close', () =>
         @deviceStatus = off
+        @deviceReconnecting = true
         env.logger.debug "StatusDevice Client Client closing"
 
       @ipCast = @assistantRelayIp + ':' + @assistantRelayPort + '/cast'
@@ -499,12 +502,13 @@ module.exports = (env) ->
         env.logger.info "Device '#{@name}' connected"
 
         if @config.playInit or !(@config.playInit?)
-          @setAnnouncement("init sounds")
-          @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume, "init sounds", null)
-          .then(()=>
-          ).catch((err)=>
-            env.logger.debug "playAnnouncement error handled " + err
-          )
+          unless @deviceReconnecting
+            @setAnnouncement("init sounds")
+            @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume, "init sounds", null)
+            .then(()=>
+            ).catch((err)=>
+              env.logger.debug "playAnnouncement error handled " + err
+            )
 
         @statusDevice.on 'status', (_status) =>
 
@@ -1036,6 +1040,7 @@ module.exports = (env) ->
         @assistantRelay = false
 
       @deviceStatus = off
+      @deviceReconnecting = false
       @textFilename = @id + "_text.mp3"
 
       #
@@ -1160,6 +1165,7 @@ module.exports = (env) ->
       #
       @statusDevice = new Device()
       @statusDevice.on 'error', (err) =>
+        @deviceReconnecting = true
         if err.message.indexOf("ECONNREFUSED")
           env.logger.debug "Network config probably changed or device is offline"
         else if err.message.indexOf("ETIMEDOUT")
@@ -1170,6 +1176,7 @@ module.exports = (env) ->
       # subscribe to inner client
       @statusDevice.client.on 'close', () =>
         @deviceStatus = off
+        @deviceReconnecting = true
         env.logger.debug "StatusDevice Client Client closing"
 
       opts =
@@ -1188,12 +1195,13 @@ module.exports = (env) ->
         @initVolume = 0.40
 
         if @config.playInit or !(@config.playInit?)
-          @setAnnouncement("init sounds")
-          @playFile(@media.base + "/" + @plugin.initFilename, @initVolume, 5000)
-          .then(()=>
-          ).catch((err)=>
-            env.logger.debug "playAnnouncement error handled " + err
-          )
+          unless @deviceReconnecting
+            @setAnnouncement("init sounds")
+            @playFile(@media.base + "/" + @plugin.initFilename, @initVolume, 5000)
+            .then(()=>
+            ).catch((err)=>
+              env.logger.debug "playAnnouncement error handled " + err
+            )
 
         @statusDevice.on 'status', (_status) =>
 
@@ -1498,6 +1506,7 @@ module.exports = (env) ->
 
       if @_destroyed then return
       @deviceStatus = off
+      @deviceReconnecting = false
       @textFilename = @id + "_text.mp3"
 
       #
@@ -1589,7 +1598,8 @@ module.exports = (env) ->
       @sonosDevice = new Sonos(@ip)
 
       if @config.playInit or !(@config.playInit?)
-        @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume, "init sounds", null)
+        unless @deviceReconnecting
+          @playAnnouncement(@media.base + "/" + @plugin.initFilename, @initVolume, "init sounds", null)
 
       @sonosDevice.on 'PlayState', (state) =>
         env.logger.debug 'The PlayState changed to ' + state
@@ -1646,11 +1656,17 @@ module.exports = (env) ->
           resolve()
         ).catch((err)=>
           @deviceStatus = off
+          @deviceReconnecting = true
           @setAttr("status","offline")
           @setAttr("info","")
           @onlineChecker()
           reject(err)
         )
+      )
+
+    playFile: (_file) =>
+      return new Promise((resolve,reject) =>
+        reject("Not implemented")
       )
 
     setAnnouncement: (_announcement) =>
