@@ -108,7 +108,7 @@ In the rules the groups device will be available as an extra play device option.
 The function of a device is controlled via rules
 The ACTION rule syntax is:
 
-**play**  [text|ask|file|main|stop]  ["$variable"|"text for tts"]|["audio filename"|"$variable"]  [**vol** [number|$variable]]  **on**  [ChromecastDevice | SonosDevice | GroupDevice] [**for** xx [seconds..]]
+**play**  [text|ask|file|main|stop]  ["$variable"|"text for tts"]|["audio filename"|"$variable"]  [**vol** [number|$variable]]  **on**  [ChromecastDevice | SonosDevice | GroupDevice] [**for** [xx|$variable] [seconds..years]]
 
 Some examples of command lines are:
 1. **play text** "this is a nice text" **vol** 50 **on** mysoundsdevice
@@ -128,6 +128,9 @@ In the file string you can also use variables to create dynamic selection of aud
 For the volume variable a number or a variable can be used.
 
 The 'vol [0-100]' after text or file is optional and will override the mainvolume. If not set, the value of the mainvolume is 20.
+
+The duration option (for ...) is used when announcing/displaying info for a certain time. The value can be a number or a variable containing a number.
+When using a variable the unit (seconds..years) is fixed in the rule and the variable holds the value.
 
 When a TuneIn stream is playing and Sounds plays a text or file, the TuneIn stream stops and is resumed after the Sounds play is finished. 
 

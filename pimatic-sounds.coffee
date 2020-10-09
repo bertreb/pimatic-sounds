@@ -6,6 +6,7 @@ module.exports = (env) ->
   path = require('path')
   _ = require('lodash')
   M = env.matcher
+  milliseconds = env.milliseconds
   Os = require('os')
   ping = require("ping")
   Device = require('castv2-client').Client
@@ -1985,8 +1986,9 @@ module.exports = (env) ->
           )
         ])
         .match(' for ', optional: yes, (m)=>
-          m.matchTimeDuration(wildcard: "{duration}", type: "text", (m, {time, unit, timeMs}) =>
-            duration = timeMs
+          m.matchTimeDurationExpression( (m, tokens) =>
+            env.logger.debug "Duration tokens " + JSON.stringify(tokens,null,2)
+            durationVar = tokens
             match = m.getFullMatch()
           )
         )
@@ -2001,7 +2003,7 @@ module.exports = (env) ->
         return {
           token: match
           nextInput: input.substring(match.length)
-          actionHandler: new SoundsActionHandler(@framework, @, text, soundType, soundsDevice, volume, volumeVar, duration)
+          actionHandler: new SoundsActionHandler(@framework, @, text, soundType, soundsDevice, volume, volumeVar, duration, durationVar)
         }
       else
         return null
@@ -2009,7 +2011,7 @@ module.exports = (env) ->
 
   class SoundsActionHandler extends env.actions.ActionHandler
 
-    constructor: (@framework, @actionProvider, @textIn, @soundType, @soundsDevice, @volume, @volumeVar, @duration) ->
+    constructor: (@framework, @actionProvider, @textIn, @soundType, @soundsDevice, @volume, @volumeVar, @duration, @durationVar) ->
 
     executeAction: (simulate) =>
       if simulate
@@ -2057,7 +2059,7 @@ module.exports = (env) ->
                     ###
                     env.logger.debug "Sound generated, now casting " + @soundsDevice.media.url
                     @soundsDevice.setAnnouncement(@text)
-                    @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number newVolume, @text, @_duration)
+                    @soundsDevice.playAnnouncement(@soundsDevice.media.url, Number newVolume, @text, @duration)
                     .then(()=>
                       env.logger.debug 'Playing ' + @soundsDevice.media.url + " with volume " + newVolume + ", and text " + @text
                       return __("\"%s\" was played ", @text)
@@ -2120,6 +2122,7 @@ module.exports = (env) ->
                 else
                   fullFilename = (@soundsDevice.media.base + "/" + @text)
                 env.logger.debug "Playing sound file... " + fullFilename
+
                 if @volumeVar?
                   newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
                   if newVolume?
@@ -2129,11 +2132,23 @@ module.exports = (env) ->
                     return __("\"%s\" volume variable no value", @text)
                 else
                   newVolume = @volume
+
+                if @durationVar?
+                  _newDuration = @framework.variableManager.getVariableValue((String @durationVar.tokens[0]).replace("$",""))
+                  if _newDuration?
+                    newDuration = milliseconds.parse("#{_newDuration} #{@durationVar.unit}")
+                  else
+                    _newDuration = Number @durationVar.tokens[0]
+                    unless Number.isNaN(_newDuration)
+                      newDuration = milliseconds.parse("#{_newDuration} #{@durationVar.unit}")
+                    else
+                      return __("\"%s\" duration variable no value", @text)
+                else
+                  newDuration = null
                 @soundsDevice.setAnnouncement(@text)
-                #_duration = @duration
-                #env.logger.info "@soundsDevice @_duration " + _duration
+
                 if @soundsDevice.config.class is "GoogleDevice"
-                  @soundsDevice.playFile(fullFilename, (Number newVolume), @duration)
+                  @soundsDevice.playFile(fullFilename, (Number newVolume), newDuration)
                   .then(()=>
                     env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
                     return __("\"%s\" was played ", @text)
@@ -2142,9 +2157,9 @@ module.exports = (env) ->
                     return __("\"%s\" was not played", @text)
                   )
                 else
-                  @soundsDevice.playAnnouncement(fullFilename, (Number newVolume), @text, @duration)
+                  @soundsDevice.playAnnouncement(fullFilename, (Number newVolume), @text, newDuration)
                   .then(()=>
-                    env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume + ", _duration " + @duration
+                    env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume + ", _duration " + newDuration
                     return __("\"%s\" was played ", @text)
                   ).catch((err)=>
                     env.logger.debug "Error in playAnnouncement: " + err
