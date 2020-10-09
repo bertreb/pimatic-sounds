@@ -127,8 +127,8 @@ module.exports = (env) ->
       #
       # The mediaserver and text settings and start of media server
       #
-      @mainVolume = 0.40
-      @initVolume = 0.40
+      @mainVolume = 20
+      @initVolume = 40
       baseUrl = "http://" + @serverIp + ":" + @serverPort
 
       @serverPort = if @config.port? then @config.port else 8088
@@ -343,7 +343,7 @@ module.exports = (env) ->
       #
       @attributes = {}
       @attributeValues = {}
-      _attrs = ["status","info"]
+      _attrs = ["status","info", "volume"]
       for _attr in _attrs
         @attributes[_attr] =
           description: "The " + _attr
@@ -419,8 +419,8 @@ module.exports = (env) ->
           @gtts = require('node-gtts')(@language)
       ###
 
-      @mainVolume = 0.20
-      @initVolume = 0.40
+      @mainVolume = 20
+      @initVolume = 40
 
       @serverPort = @plugin.serverPort
       @serverIp = @plugin.serverIp
@@ -523,10 +523,12 @@ module.exports = (env) ->
               @deviceReplayingPaused = false
               @setAttr "status", "idle"
               @setAttr "info", ""
+              @setAttr("volume",@mainVolume)
 
           if _status.volume?.level?
-            @devicePlayingVolume = _status.volume.level
-            @mainVolume = _status.volume.level
+            @devicePlayingVolume = Math.round(_status.volume.level * 100)
+            @mainVolume = @devicePlayingVolume
+            @setAttr("volume", @mainVolume)
 
           if @statusDevice?
             @statusDevice.getSessions((err,sessions) =>
@@ -603,15 +605,15 @@ module.exports = (env) ->
     playAnnouncement: (_url, _vol, _text, _duration) =>
       return new Promise((resolve,reject) =>
 
-        @_volume = _vol * 100 if _vol < 1
+        #@_volume = _vol * 100 if _vol < 1
 
         @announcement = true
         @announcementUrl = _url
+        @deviceReplayingVolume = @devicePlayingVolume
         if @devicePlaying
           @deviceReplaying = true
           @deviceReplayingUrl = @devicePlayingUrl
           @deviceReplayingInfo = @devicePlayingInfo
-          @deviceReplayingVolume = @devicePlayingVolume
           @deviceReplayingMedia = @devicePlayingMedia
           @deviceReplayingPaused = @devicePaused
           #env.logger.debug "Replaying values set, vol: " + @deviceReplayingVolume + ", url: " + @deviceReplayingUrl + ", paused: " + @devicePaused
@@ -737,6 +739,8 @@ module.exports = (env) ->
                             @announcement = false
                             reject()
                           )
+                        else
+                          @setVolume(@deviceReplayingVolume)
                       ).catch((err)=> env.logger.debug "Error in stopCasting " + err)
                     , duration)
                 )
@@ -983,12 +987,14 @@ module.exports = (env) ->
       return new Promise((resolve,reject) =>
         unless vol?
           reject()
-        if vol > 1 then vol /= 100
-        if vol < 0 then vol = 0
+        _vol = vol
+        if vol > 1 then _vol /= 100
+        if vol < 0 then _vol = 0
         @mainVolume = vol
+        @setAttr("volume", vol)
         @devicePlayingVolume = vol
         env.logger.debug "Setting volume to  " + vol
-        data = {level: vol}
+        data = {level: _vol}
         env.logger.debug "Setvolume data: " + JSON.stringify(data,null,2)
         @statusDevice.setVolume(data, (err) =>
           if err?
@@ -1050,7 +1056,7 @@ module.exports = (env) ->
 
       @attributes = {}
       @attributeValues = {}
-      _attrs = ["status","info"]
+      _attrs = ["status","info","volume"]
       for _attr in _attrs
         @attributes[_attr] =
           description: "The " + _attr
@@ -1192,8 +1198,8 @@ module.exports = (env) ->
         @deviceStatus = on
         env.logger.info "Device '#{@name}' connected"
 
-        @mainVolume = 0.20
-        @initVolume = 0.40
+        @mainVolume = 20
+        @initVolume = 40
 
         if @config.playInit or !(@config.playInit?)
           unless @deviceReconnecting
@@ -1216,10 +1222,12 @@ module.exports = (env) ->
               @deviceReplayingPaused = false
               @setAttr "status", "idle"
               @setAttr "info", ""
+              @setAttr "volume", @mainVolume
 
           if _status.volume?.level?
-            @devicePlayingVolume = _status.volume.level
-            @mainVolume = _status.volume.level
+            @devicePlayingVolume = Math.round(_status.volume.level * 100)
+            @mainVolume = @devicePlayingVolume
+            @setAttr "volume", @mainVolume            
 
           if @statusDevice?
             @statusDevice.getSessions((err,sessions) =>
@@ -1309,11 +1317,11 @@ module.exports = (env) ->
       return new Promise((resolve,reject) =>
 
         @bodyCast.source = _url
+        @deviceReplayingVolume = @devicePlayingVolume
         if @devicePlaying
           @deviceReplaying = true
           @deviceReplayingUrl = @devicePlayingUrl
           @deviceReplayingInfo = @devicePlayingInfo
-          @deviceReplayingVolume = @devicePlayingVolume
           @deviceReplayingMedia = @devicePlayingMedia
           @deviceReplayingPaused = @devicePaused
           #env.logger.debug "Replaying values set, vol: " + @deviceReplayingVolume + ", url: " + @deviceReplayingUrl + ", paused: " + @devicePaused
@@ -1347,6 +1355,8 @@ module.exports = (env) ->
                   env.logger.debug "Error replaying"
                   reject()
                 )
+              else
+                @setVolume(@deviceReplayingVolume)
             , _duration)
           resolve()
         )
@@ -1449,11 +1459,13 @@ module.exports = (env) ->
       return new Promise((resolve,reject) =>
         unless vol?
           reject()
-        if vol < 1 then vol *= 100
-        if vol > 100 then vol = 100
-        if vol < 0 then vol = 0
-        vol = Math.round(vol)
-        _command = 'catt -d ' + @ip + ' volume ' + vol
+        _vol = vol
+        if vol < 1 then _vol *= 100
+        if vol > 100 then _vol = 100
+        if vol < 0 then _vol = 0
+        _vol = Math.round(_vol)
+        @setAttr "volume", vol
+        _command = 'catt -d ' + @ip + ' volume ' + _vol
         exec(_command)
         .then((resp)=>
           resolve()
@@ -1515,7 +1527,7 @@ module.exports = (env) ->
       #
       @attributes = {}
       @attributeValues = {}
-      _attrs = ["status","info"]
+      _attrs = ["status","info","volume"]
       for _attr in _attrs
         @attributes[_attr] =
           description: "The " + _attr
@@ -1624,6 +1636,7 @@ module.exports = (env) ->
 
       @sonosDevice.on 'Volume', (volume) =>
         @mainVolume = volume
+        @setAttr("volume", @mainVolume)
         @devicePlayingVolume = volume
         env.logger.debug "New mainvolume '" + @devicePlayingVolume + "'' in device '" + @id + "'"
 
@@ -1678,6 +1691,7 @@ module.exports = (env) ->
         if vol > 100 then vol 100
         if vol < 0 then vol = 0
         @mainVolume = vol
+        @setAttr("volume", @mainVolume)
         @devicePlayingVolume = vol
         env.logger.debug "Setting volume to  " + vol
         data = {level: vol}

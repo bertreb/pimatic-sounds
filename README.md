@@ -136,6 +136,12 @@ When a TuneIn stream is playing and Sounds plays a text or file, the TuneIn stre
 
 On a GoogleDevice you can ask a question ('play ask ...'). The answer is being played via the GoogleDevice.
 
+## Attributes
+The following 3 attributes are created:
+- status: the device status like playing, paused, etc
+- info: informatie about the currently playing/paused media
+- volume: the currently active volume level (0-100)
+
 ### Credits
 This plugin is build from several existing pieces of software. Sometimes the ideas and sometimes the real pieces of code. To mention are:
 - castv2-client from thibauts

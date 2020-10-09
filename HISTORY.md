@@ -97,5 +97,7 @@
 	* add ask option for ChromecastDevice
 * 20201007, v0.1.17
 	* remove initSounds on reconnect
-* 20201007, v0.1.18
+* 20201009, v0.1.18
 	* added variable for duration
+* 20201009, v0.1.19
+	* added volume status in gui
