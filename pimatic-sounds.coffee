@@ -2285,7 +2285,7 @@ module.exports = (env) ->
                 if @soundsDevice.config.class is "GoogleDevice"
                   @soundsDevice.playSite(fullUrl, (Number newVolume), newDuration)
                   .then(()=>
-                    env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
+                    env.logger.debug 'Playing ' + fullUrl + " with volume " + newVolume
                     return __("\"%s\" was played ", @text)
                   ).catch((err)=>
                     env.logger.debug "Error in playAnnouncement: " + err

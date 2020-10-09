@@ -103,3 +103,5 @@
 	* added volume status in gui
 * 20201009, v0.1.20
 	* added play site for streaming video (camera, etc)
+* 20201009, v0.1.21
+	* small fix
