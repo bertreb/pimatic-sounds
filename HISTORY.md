@@ -101,3 +101,5 @@
 	* added variable for duration
 * 20201009, v0.1.19
 	* added volume status in gui
+* 20201009, v0.1.20
+	* added play site for streaming video (camera, etc)

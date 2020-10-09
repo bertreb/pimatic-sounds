@@ -108,7 +108,7 @@ In the rules the groups device will be available as an extra play device option.
 The function of a device is controlled via rules
 The ACTION rule syntax is:
 
-**play**  [text|ask|file|main|stop]  ["$variable"|"text for tts"]|["audio filename"|"$variable"]  [**vol** [number|$variable]]  **on**  [ChromecastDevice | SonosDevice | GroupDevice] [**for** [xx|$variable] [seconds..years]]
+**play**  [text|ask|file|site|main|stop]  ["$variable"|"text for tts"]|["audio filename"|"$variable"]  [**vol** [number|$variable]]  **on**  [ChromecastDevice | GoogleDevice | SonosDevice | GroupDevice] [**for** [xx|$variable] [seconds..years]]
 
 Some examples of command lines are:
 1. **play text** "this is a nice text" **vol** 50 **on** mysoundsdevice
@@ -116,6 +116,7 @@ Some examples of command lines are:
 3. **play file** "nice-music.mp3" **vol** 25 **on** mysoundsdevice
 4. **play file** "$that-funky-music" vol $loud-music **on** mysoundsdevice
 5. **play file** "$that-funky-music" vol $loud-music **on** mysoundsdevice **for** 10 seconds
+5. **play site** "http://<streaming-ip>" **on** mysoundsdevice **for** 10 seconds
 6. **play main** vol $loud-music **on** mysoundsdevice
 7. **play stop on** mysoundsdevice
 
@@ -134,7 +135,7 @@ When using a variable the unit (seconds..years) is fixed in the rule and the var
 
 When a TuneIn stream is playing and Sounds plays a text or file, the TuneIn stream stops and is resumed after the Sounds play is finished. 
 
-On a GoogleDevice you can ask a question ('play ask ...'). The answer is being played via the GoogleDevice.
+On a GoogleDevice you can ask a question ('play ask ...'). The answer is being played via the GoogleDevice. And you can stream a website with the command 'play site ...'. This is usefull for streaming video like camera's.
 
 ## Attributes
 The following 3 attributes are created:

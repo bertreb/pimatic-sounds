@@ -1366,6 +1366,59 @@ module.exports = (env) ->
         )
       )
 
+    playSite: (_url, _volume, _duration) =>
+      return new Promise((resolve,reject) =>
+
+        @bodyCast.source = _url
+        @deviceReplayingVolume = @devicePlayingVolume
+        if @devicePlaying
+          @deviceReplaying = true
+          @deviceReplayingUrl = @devicePlayingUrl
+          @deviceReplayingInfo = @devicePlayingInfo
+          @deviceReplayingMedia = @devicePlayingMedia
+          @deviceReplayingPaused = @devicePaused
+          #env.logger.debug "Replaying values set, vol: " + @deviceReplayingVolume + ", url: " + @deviceReplayingUrl + ", paused: " + @devicePaused
+        else
+          @deviceReplaying = false
+          @deviceReplayingUrl = null # @devicePlayingUrl
+
+        #_contentType = getContentType(_url)
+
+        #needle('post',@ipCast, @bodyCast, @opts)
+        _command = "catt -d #{@ip} cast_site " + _url
+        exec(_command)
+        .then((resp)=>
+          env.logger.debug "Cast_site " + _url
+          return @setVolume(_volume)
+        )
+        .then(()=>
+          unless _duration?
+            _duration = @duration
+          env.logger.debug "Cast for " + _duration
+          if _duration?
+            @durationTimer = setTimeout(()=>
+              env.logger.debug "Cast_site ends"
+              @stop()
+              if @deviceReplaying
+                @replayFile(@deviceReplayingUrl, @deviceReplayingVolume, @deviceReplayingPaused)
+                .then(()=>
+                  resolve()
+                )
+                .catch((err)=>
+                  env.logger.debug "Error replaying"
+                  reject()
+                )
+              else
+                @setVolume(@deviceReplayingVolume)
+            , _duration)
+          resolve()
+        )
+        .catch((err)=>
+          env.logger.debug("error playing file handled: " + err)
+          reject("playing file failed, " + err)
+        )
+      )
+
     replayFile: (_url, _volume, _paused) =>
       return new Promise((resolve,reject) =>
 
@@ -1882,6 +1935,14 @@ module.exports = (env) ->
           return
         return
 
+      setSite = (m, tokens) =>
+        soundType = "site"
+        text = tokens
+        if (text.join('')).indexOf(" ") >= 0
+          context?.addError("no spaces allowed in filestring")
+          return
+        return
+
       setFilenameString = (m, filename) =>
         fullfilename = path.join(@root, filename)
         try
@@ -1950,6 +2011,10 @@ module.exports = (env) ->
           ((m) =>
             return m.match('file ')
               .matchStringWithVars(setFilename)
+          ),
+          ((m) =>
+            return m.match('site ')
+              .matchStringWithVars(setSite)
           ),
           ((m) =>
             return m.match('ask ')
@@ -2180,6 +2245,63 @@ module.exports = (env) ->
                     return __("\"%s\" was not played", @text)
                   )
               )
+
+            when "site"
+              @framework.variableManager.evaluateStringExpression(@textIn).then( (strToLog) =>
+                @text = strToLog
+                if @text.indexOf(" ")>=0
+                  env.logger.debug "No spaces allowed in url, rule not executed"
+                  return __("No spaces allowed in url, rule not executed")
+                if @text.startsWith("http")
+                  fullUrl = @text
+                else
+                  fullUrl = (@soundsDevice.media.base + "/" + @text)
+                env.logger.debug "Playing sound file... " + fullUrl
+
+                if @volumeVar?
+                  newVolume = @framework.variableManager.getVariableValue(@volumeVar.replace("$",""))
+                  if newVolume?
+                    if newVolume > 100 then newVolume = 100
+                    if newVolume < 0 then newVolume = 0
+                  else
+                    return __("\"%s\" volume variable no value", @text)
+                else
+                  newVolume = @volume
+
+                if @durationVar?
+                  _newDuration = @framework.variableManager.getVariableValue((String @durationVar.tokens[0]).replace("$",""))
+                  if _newDuration?
+                    newDuration = milliseconds.parse("#{_newDuration} #{@durationVar.unit}")
+                  else
+                    _newDuration = Number @durationVar.tokens[0]
+                    unless Number.isNaN(_newDuration)
+                      newDuration = milliseconds.parse("#{_newDuration} #{@durationVar.unit}")
+                    else
+                      return __("\"%s\" duration variable no value", @text)
+                else
+                  newDuration = null
+                @soundsDevice.setAnnouncement(@text)
+
+                if @soundsDevice.config.class is "GoogleDevice"
+                  @soundsDevice.playSite(fullUrl, (Number newVolume), newDuration)
+                  .then(()=>
+                    env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
+                    return __("\"%s\" was played ", @text)
+                  ).catch((err)=>
+                    env.logger.debug "Error in playAnnouncement: " + err
+                    return __("\"%s\" was not played", @text)
+                  )
+                else
+                  @soundsDevice.playAnnouncement(fullUrl, (Number newVolume), @text, newDuration)
+                  .then(()=>
+                    env.logger.debug 'Playing ' + fullUrl + " with volume " + newVolume + ", _duration " + newDuration
+                    return __("\"%s\" was played ", @text)
+                  ).catch((err)=>
+                    env.logger.debug "Error in playAnnouncement: " + err
+                    return __("\"%s\" was not played", @text)
+                  )
+              )
+
 
             when "vol"
               @text = "volume set"
