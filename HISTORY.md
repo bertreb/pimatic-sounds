@@ -105,3 +105,5 @@
 	* added play site for streaming video (camera, etc)
 * 20201009, v0.1.21
 	* small fix
+* 20201010, v0.1.22
+	* fix duration timer

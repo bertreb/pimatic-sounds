@@ -331,6 +331,7 @@ module.exports = (env) ->
 
       @deviceStatus = off
       @deviceReconnecting = false
+      @duration = null
       @textFilename = @id + "_text.mp3"
 
       @current =
@@ -565,6 +566,7 @@ module.exports = (env) ->
                             @setAttr "info", @devicePlayingInfo
                             if status.media?.duration?
                               @duration = status.media.duration * 1000
+                              if @duration is 0 then @duration = null
                         @devicePlaying = if (status.playerState is "PLAYING" or status.playerState is "BUFFERING") then true else false
                         @devicePaused = if status.playerState is "PAUSED" then true else false
                         @setAttr "status", status.playerState.toLowerCase()
@@ -1048,6 +1050,7 @@ module.exports = (env) ->
 
       @deviceStatus = off
       @deviceReconnecting = false
+      @duration = null
       @textFilename = @id + "_text.mp3"
 
       #
@@ -1132,7 +1135,7 @@ module.exports = (env) ->
             startupTime = () =>
               env.logger.debug "Device '#{@id}' is online"
               @deviceStatus = on
-              @setAttr("status","online")
+              @setAttr("status","idle")
               @setAttr("info","")
               @initSounds()
             @startupTimer = setTimeout(startupTime,20000)
@@ -1269,6 +1272,7 @@ module.exports = (env) ->
                             @setAttr "info", @devicePlayingInfo
                             if status.media?.duration?
                               @duration = status.media.duration * 1000
+                              if @duration is 0 then @duration = null
                         @devicePlaying = if (status.playerState is "PLAYING" or status.playerState is "BUFFERING") then true else false
                         @devicePaused = if status.playerState is "PAUSED" then true else false
                         @setAttr "status", status.playerState.toLowerCase()
