@@ -1,7 +1,10 @@
 # pimatic-sounds
 Pimatic plugin for playing mp3 files and tts sentences on Chromecast and Sonos devices. A typical chromecast device devices is Google Home or a Google chromecast dongle. The Ikea SYMFONISK is a Sonos device. There are 2 options for using Google devices.
 1. Use the Chromecast option (ChromecastDevice). This can be used without any action in the Google cloud. The announcement function works in limited cases (tested only with tuneIn). In some cases the currently playing stream with be stopped when an annoucement is played.
-2. Use the Assistant option (GoogleDevice). In this option an announcement will just pause the currently playing stream and the stream will continue after the announcement. For this option you need to configure 'an assistant device' in Google Cloud ([instructions](https://greghesp.github.io/assistant-relay/docs/introduction)). If you installed assistant-relay on an other system then you need to install the python library catt on your pimatic system (see [install catt](https://github.com/skorokithakis/catt)). Use 'sudo pip3 install catt' to get a systemwide command.
+You need to install the python library CATT on your pimatic system (see [install catt](https://github.com/skorokithakis/catt)). Use 'sudo pip3 install catt' to get a systemwide command. The chromecastDevice is using a mix of of 2 library's (castv2-client and catt)
+2. When you use the GoogleDevice you get 2 extra features. 
+In this option an announcement will just pause the currently playing stream and the stream will continue after the announcement. For this option you need to install and configure 'an assistant device' in Google Cloud ([instructions](https://greghesp.github.io/assistant-relay/docs/introduction)).
+You can ask questions in text form in rules and the GoogleDevice will answer. This is like you would ask a Google Assistant. The way you could even control devices that are know in Google Home. 
 
 Install the plugin via the plugin page of Pimatic or add the following in config.json
 ```
@@ -52,7 +55,7 @@ Create a Chromecast device with the following config.
   "xAttributeOptions": [],
 }
 ```
-The Cromecast device types are a single, grouped or paired devices. The discovery will find them and they can be added and used in the rules
+The Cromecast device types are a single, grouped or paired devices. The discovery will find them and they can be added and used in the rules. 
 
 ### Google Device
 Create a Google device with the following config.
@@ -113,12 +116,13 @@ The ACTION rule syntax is:
 Some examples of command lines are:
 1. **play text** "this is a nice text" **vol** 50 **on** mysoundsdevice
 2. **play ask** "what's the weather" **on** **GoogleDevice**
-3. **play file** "nice-music.mp3" **vol** 25 **on** mysoundsdevice
-4. **play file** "$that-funky-music" vol $loud-music **on** mysoundsdevice
-5. **play file** "$that-funky-music" vol $loud-music **on** mysoundsdevice **for** 10 seconds
-5. **play site** "http://<streaming-ip>" **on** mysoundsdevice **for** 10 seconds
-6. **play main** vol $loud-music **on** mysoundsdevice
-7. **play stop on** mysoundsdevice
+3. **play ask** "switch light livingroom on" **on** **GoogleDevice**
+4. **play file** "nice-music.mp3" **vol** 25 **on** mysoundsdevice
+5. **play file** "$that-funky-music" vol $loud-music **on** mysoundsdevice
+6. **play file** "$that-funky-music" vol $loud-music **on** mysoundsdevice **for** 10 seconds
+7. **play site** "http://<streaming-ip>" **on** mysoundsdevice **for** 10 seconds
+8. **play main** vol $loud-music **on** mysoundsdevice
+9. **play stop on** mysoundsdevice
 
 In the main directory of Pimatic (mostly /home/pi/pimatic-app) a directory sounds is created. You can put mp3 files in that directory. You can create subdirectories in sounds and can use them in the rule.
 
@@ -135,7 +139,7 @@ When using a variable the unit (seconds..years) is fixed in the rule and the var
 
 When a TuneIn stream is playing and Sounds plays a text or file, the TuneIn stream stops and is resumed after the Sounds play is finished. 
 
-On a GoogleDevice you can ask a question ('play ask ...'). The answer is being played via the GoogleDevice. And you can stream a website with the command 'play site ...'. This is usefull for streaming video like camera's.
+On a GoogleDevice you can ask a question ('play ask ...'). The answer is being played via the GoogleDevice. And you can stream a website with the command 'play site ...'. This is usefull for streaming video like camera's. You can control device knwon in Google Home.
 
 ## Attributes
 The following 3 attributes are created:

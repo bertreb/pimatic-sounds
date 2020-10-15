@@ -107,3 +107,9 @@
 	* small fix
 * 20201010, v0.1.22
 	* fix duration timer
+* 202010xx, v0.2.0
+	* edit duration
+	* update url handling (http -> ://)
+	* fix "undefined" in rule execution
+	* get actual device volume on startup
+	* added some catt functionality
