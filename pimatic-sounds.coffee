@@ -807,11 +807,12 @@ module.exports = (env) ->
 
         #@announcementUrl = _url
         _playingDevice = @getPlayingState()
+        env.logger.debug "Playsite - start, PlayingState: " + _playingDevice.state
         if _playingDevice.state in @playingStates
           @setReplayingState(_playingDevice)
-          env.logger.debug "Replaying values: " + JSON.stringify(_playingDevice,null,2)
         else
           @setReplayingState({state:"IDLE",url:null})
+        env.logger.debug "Replaying values: " + JSON.stringify(_playingDevice,null,2)
 
         _command = "catt -d #{@ip} cast_site " + _url
         exec(_command)
@@ -836,10 +837,11 @@ module.exports = (env) ->
                   .then(()=>
                     env.logger.debug "Device replaying started"
                     #@replayingDevice.state = "IDLE"
+                    env.logger.debug "Playsite - end ok"
                     resolve()
                   )
                   .catch((err)=>
-                    env.logger.debug "Error replaying"
+                    env.logger.debug "Playsite - end not ok, " + err
                     reject()
                   )
                 else

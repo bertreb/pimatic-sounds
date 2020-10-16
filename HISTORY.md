@@ -113,5 +113,5 @@
 	* fix "undefined" in rule execution
 	* get actual device volume on startup
 	* added some catt functionality
-* 20201016, v0.2.1
+* 20201016, v0.2.2
 	* small fix and debug info
