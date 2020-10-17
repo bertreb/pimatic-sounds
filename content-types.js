@@ -51,10 +51,12 @@ const contentTypeMap = {
     webp: "image/webp",
     wmv: "video/x-ms-wmv"
   };
-  var ext = fileName.split(".").slice(-1)[0];
-  var contentType = contentTypeMap[ext.toLowerCase()];
-
-  return contentType || "audio/basic";
+  var contentType = "audio/basic";
+  if (fileName.indexOf(".")>=0) {
+    var ext = fileName.split(".").slice(-1)[0];
+    contentType = contentTypeMap[ext.toLowerCase()];
+  }
+  return contentType;
 };
 
 module.exports = getContentType;

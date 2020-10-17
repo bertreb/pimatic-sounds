@@ -115,3 +115,5 @@
 	* added some catt functionality
 * 20201016, v0.2.2
 	* small fix and debug info
+* 20201017, v0.2.3
+	* replaying fix

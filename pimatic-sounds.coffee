@@ -584,6 +584,8 @@ module.exports = (env) ->
       return new Promise((resolve,reject) =>
 
         @announcementUrl = _url
+        unless _vol?
+          _vol = @mainVolume
         _playingDevice = @getPlayingState()
         if _playingDevice.state in @playingStates
           @setReplayingState(_playingDevice)
@@ -756,6 +758,7 @@ module.exports = (env) ->
         )
       )
 
+    ###
     playFile: (_url, _volume, _duration) =>
       return new Promise((resolve,reject) =>
         
@@ -801,23 +804,67 @@ module.exports = (env) ->
           reject("playing file failed, " + err)
         )
       )
+    ###
+
+    playFile: (_url, _volume, _duration) =>
+      return @playContent("file", _url, _volume, _duration)
 
     playSite: (_url, _volume, _duration) =>
+      return @playContent("site", _url, _volume, _duration)
+
+    checkUrl: (_url) ->
+      _result = {valid: false}
+      try
+        if _url? and (String _url).indexOf("http") >=0
+          _result = {valid: true}
+          ###
+          else
+            env.logger.debug "checkUrl: " + _media?.contentType + ", contentId: " + _media.contentId
+            if _media?.contentType?
+              switch _media.contentType
+                when "x-youtube/video"
+                  _newUrl = "https://www.youtube.com/watch?v=" + _media.contentId
+                  _result = {valid: true, url: _newUrl}
+                else
+                  _result = {valid: false, url: null}
+            else
+              _result = {valid: false, url: null}
+          ###
+      catch err
+        _result = {valid: false}
+      return _result    
+
+
+    playContent: (_type, _url, _volume, _duration) =>
       return new Promise((resolve,reject) =>
 
-        #@announcementUrl = _url
         _playingDevice = @getPlayingState()
-        env.logger.debug "Playsite - start, PlayingState: " + _playingDevice.state
-        if _playingDevice.state in @playingStates
-          @setReplayingState(_playingDevice)
+        env.logger.debug "PlayContent - start, PlayingState: " + _playingDevice.state # + ", validUrl: " + @checkUrl(_playingDevice.url)
+        if (_playingDevice.state in @playingStates)
+          if @checkUrl(_playingDevice.url).valid
+            @setReplayingState(_playingDevice)
+            env.logger.debug "Replaying content possible"
+          else
+            @setReplayingState({state: "IDLE", url: null})
+            env.logger.debug "Replaying content not possible"
         else
-          @setReplayingState({state:"IDLE",url:null})
-        env.logger.debug "Replaying values: " + JSON.stringify(_playingDevice,null,2)
+          @setReplayingState({state: "IDLE", url: null})
+        env.logger.debug "Replaying values: " + JSON.stringify(@getReplayingState(),null,2)
 
-        _command = "catt -d #{@ip} cast_site " + _url
+        switch _type
+          when "file"
+            _command = "catt -d #{@ip} cast " + _url
+          when "site"
+            _command = "catt -d #{@ip} cast_site " + _url
+          else
+            _command = "catt -d #{@ip} cast " + _url
+
+        unless _volume?
+          _volume = @mainVolume
+
         exec(_command)
         .then((resp)=>
-          env.logger.debug "Cast_site " + _url
+          env.logger.debug "Cast_site " + _command
           return @setVolume(_volume)
         )
         .then(()=>
@@ -832,20 +879,22 @@ module.exports = (env) ->
                 @setPlayingState({duration:null})
                 #env.logger.debug "Replay check,  @getReplayingState: " + @getReplayingState()
                 _replayingDevice = @getReplayingState()
-                if _replayingDevice.state in @playingStates
+                env.logger.debug "PlayContent finished"
+                if (_replayingDevice.state in @playingStates) and @checkUrl(_replayingDevice.url).valid
+                  env.logger.debug "Start of restartReplaying"
                   @restartPlaying(_replayingDevice.url, _replayingDevice.volume, _replayingDevice)
                   .then(()=>
                     env.logger.debug "Device replaying started"
                     #@replayingDevice.state = "IDLE"
-                    env.logger.debug "Playsite - end ok"
                     resolve()
                   )
                   .catch((err)=>
-                    env.logger.debug "Playsite - end not ok, " + err
+                    env.logger.debug "PlayContent - error, " + err
                     reject()
                   )
                 else
                   @setVolume(_replayingDevice.volume)
+                  env.logger.debug "Device volume set"
               )
             , _duration)
           resolve()
@@ -862,7 +911,7 @@ module.exports = (env) ->
 
         env.logger.debug "replaying, url " + _url + ", vol " + _volume + ", pause? " + _paused
         #@bodyCast.source = _url
-        unless _url? and not (_url is "")
+        if _url? and not (_url is "")
           _command = "catt -d #{@ip} cast " + _url
           #needle('post',@ipCast, @bodyCast, @opts)
           exec(_command)
@@ -966,8 +1015,10 @@ module.exports = (env) ->
         device.on 'error', (err) =>
           if err.message.indexOf("ETIMEDOUT")
             env.logger.debug "ReplayDevice offline"
+            reject(err)
           else
             env.logger.debug "Error in ReplayDevice " + err.message
+            reject(err)
 
         # subscribe to inner client
         device.client.on 'close', () =>
@@ -977,9 +1028,13 @@ module.exports = (env) ->
           host: @ip
           port: @port
 
+        if _replayingDevice.media?.contentType?
+          _contentType = _replayingDevice.media.contentType
+        else
+          _contentType = getContentType(_url)
         _media =
           contentId : _url
-          contentType: getContentType(_url)
+          contentType: _contentType
           streamType: 'BUFFERED'
         if _replayingDevice.media?.metadata?.title?
           defaultMetadata =
@@ -1049,7 +1104,6 @@ module.exports = (env) ->
         @setPlayingState({volume: vol})
         env.logger.debug "Setting volume to  " + vol
         data = {level: _vol}
-        env.logger.debug "Setvolume: " + JSON.stringify(data,null,2)
         @statusDevice.setVolume(data, (err) =>
           if err?
             reject()
@@ -1413,7 +1467,8 @@ module.exports = (env) ->
           @deviceReplaying = false
           @deviceReplayingUrl = null # @devicePlayingUrl
 
-        #_contentType = getContentType(_url)
+        unless _volume?
+          _volume = @mainVolume
 
         #needle('post',@ipCast, @bodyCast, @opts)
         _command = "catt -d #{@ip} cast " + _url
@@ -1466,7 +1521,8 @@ module.exports = (env) ->
           @deviceReplaying = false
           @deviceReplayingUrl = null # @devicePlayingUrl
 
-        #_contentType = getContentType(_url)
+        unless _volume?
+          _volume = @mainVolume
 
         #needle('post',@ipCast, @bodyCast, @opts)
         _command = "catt -d #{@ip} cast_site " + _url
@@ -1509,6 +1565,8 @@ module.exports = (env) ->
 
         env.logger.debug "replaying, url " + _url + ", vol " + _volume + ", pause? " + _paused
         @bodyCast.source = _url
+        unless _volume?
+          _volume = @mainVolume
         _command = "catt -d #{@ip} cast " + _url
         #exec(_command)
         needle('post',@ipCast, @bodyCast, @opts)
@@ -1621,8 +1679,8 @@ module.exports = (env) ->
           force: true
         @setAttr("status","idle")
         @setAttr("info","")
-        exec('catt -d ' + @ip + ' stop')
         #needle('post', @ipCastStop, _body, @opts)
+        exec('catt -d ' + @ip + ' stop')
         .then((resp)=>
           resolve()
         )
@@ -2160,7 +2218,7 @@ module.exports = (env) ->
       #match = m.getFullMatch()
 
       unless volume?
-        volume = @mainVolume
+        volume = 20 #@mainVolume
 
       if m.hadMatch()
         env.logger.debug "Rule matched: '", match, "' and passed to Action handler"
@@ -2319,16 +2377,16 @@ module.exports = (env) ->
                     env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
                     return __("\"%s\" was played ", @text)
                   ).catch((err)=>
-                    env.logger.debug "Error in playAnnouncement: " + err
+                    env.logger.debug "Error in playFile: " + err
                     return __("\"%s\" was not played", @text)
                   )
                 else
-                  @soundsDevice.playAnnouncement(fullFilename, (Number newVolume), @text, newDuration)
+                  @soundsDevice.playFile(fullFilename, (Number newVolume), newDuration)
                   .then(()=>
                     env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume + ", _duration " + newDuration
                     return __("\"%s\" was played ", @text)
                   ).catch((err)=>
-                    env.logger.debug "Error in playAnnouncement: " + err
+                    env.logger.debug "Error in playFile: " + err
                     return __("\"%s\" was not played", @text)
                   )
               )
@@ -2369,6 +2427,7 @@ module.exports = (env) ->
                   newDuration = null
 
                 @soundsDevice.setAnnouncement(@text)
+                #env.logger.debug "@volume: " + @volume + ", newVolume: " + newVolume
 
                 if @soundsDevice.config.class is "GoogleDevice"
                   @soundsDevice.playSite(fullUrl, (Number newVolume), newDuration)
@@ -2376,7 +2435,7 @@ module.exports = (env) ->
                     env.logger.debug 'Playing ' + fullUrl + " with volume " + newVolume
                     return __("\"%s\" was played ", @text)
                   ).catch((err)=>
-                    env.logger.debug "Error in playAnnouncement: " + err
+                    env.logger.debug "Error in playSite: " + err
                     return __("\"%s\" was not played", @text)
                   )
                 else
@@ -2385,7 +2444,7 @@ module.exports = (env) ->
                     env.logger.debug 'Playing ' + fullUrl + " with volume " + newVolume + ", _duration " + newDuration
                     return __("\"%s\" was played ", @text)
                   ).catch((err)=>
-                    env.logger.debug "Error in playAnnouncement: " + err
+                    env.logger.debug "Error in playSite: " + err
                     return __("\"%s\" was not played", @text)
                   )
               )
