@@ -532,9 +532,9 @@ module.exports = (env) ->
                           else
                             @setAttr "info", _playingDevice.info                             
                           _playingDevice.media = status.media
-                          if status.media?.duration?
+                          if status.media?.duration
                             _playingDevice.duration = status.media.duration * 1000
-                            if _playingDevice.duration is 0 then _playingDevice.duration = null
+                            #if _playingDevice.duration is 0 then _playingDevice.duration = null
                             #else
                             #  _playingDevice.duration = null           
                         _playingDevice.state = status.playerState
@@ -698,7 +698,7 @@ module.exports = (env) ->
                     ).catch((err)=> env.logger.debug "Error in restoring after announcement " + err)
                     resolve()
                     return
-                  if duration?
+                  if duration #?
                     env.logger.debug "Playing announcement on device '" + @id + ", duration " + duration
                     @durationTimer = setTimeout(() =>
                       @duration = null
@@ -870,10 +870,10 @@ module.exports = (env) ->
           return @setVolume(_volume)
         )
         .then(()=>
-          unless _duration?
+          unless _duration
             _duration = _playingDevice.duration
           env.logger.debug "Cast for " + _duration
-          if _duration? and _duration > 0
+          if _duration #? and _duration > 0
             @durationTimer = setTimeout(()=>
               env.logger.debug "Cast_site ends"
               @stop()
@@ -1411,7 +1411,7 @@ module.exports = (env) ->
                             if @devicePlayingInfo.length > 30
                               @devicePlayingInfo = ((@devicePlayingInfo.substr(0,30)) + " ...")
                             @devicePlayingMedia = status.media
-                            if status.media?.duration?
+                            if status.media?.duration
                               @duration = status.media.duration * 1000
                               if @duration is 0 then @duration = null
                         @devicePlaying = if (status.playerState is "PLAYING" or status.playerState is "BUFFERING") then true else false
@@ -1485,10 +1485,10 @@ module.exports = (env) ->
           return @setVolume(_volume)
         )
         .then(()=>
-          unless _duration?
+          unless _duration
             _duration = @duration
           env.logger.debug "Cast for " + _duration
-          if _duration?
+          if _duration
             @durationTimer = setTimeout(()=>
               env.logger.debug "Cast ends"
               @stop()
@@ -1879,6 +1879,25 @@ module.exports = (env) ->
           @onlineChecker()
           reject(err)
         )
+        if _duration
+          @durationTimer = setTimeout(()=>
+            env.logger.debug "Sonos annoucement ends"
+            @stop()
+            ###
+            if @deviceReplaying
+              @replayFile(@deviceReplayingUrl, @deviceReplayingVolume, @deviceReplayingPaused)
+              .then(()=>
+                resolve()
+              )
+              .catch((err)=>
+                env.logger.debug "Error replaying"
+                reject()
+              )
+            else
+            ###
+            @setVolume(@deviceReplayingVolume)
+          , _duration)
+
       )
 
     playFile: (_file) =>
@@ -1931,6 +1950,7 @@ module.exports = (env) ->
         env.logger.error "Error in Sonos destroy " + err
       clearTimeout(@onlineCheckerTimer)
       clearTimeout(@startupTimer)
+      clearTimeout(@durationTimer)
       super()
 
 
@@ -2378,24 +2398,34 @@ module.exports = (env) ->
                   newDuration = null
                 @soundsDevice.setAnnouncement(@text)
 
-                if @soundsDevice.config.class is "GoogleDevice"
-                  @soundsDevice.playFile(fullFilename, (Number newVolume), newDuration)
-                  .then(()=>
-                    env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
-                    return __("\"%s\" was played ", @text)
-                  ).catch((err)=>
-                    env.logger.debug "Error in playFile: " + err
-                    return __("\"%s\" was not played", @text)
-                  )
-                else
-                  @soundsDevice.playFile(fullFilename, (Number newVolume), newDuration)
-                  .then(()=>
-                    env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume + ", _duration " + newDuration
-                    return __("\"%s\" was played ", @text)
-                  ).catch((err)=>
-                    env.logger.debug "Error in playFile: " + err
-                    return __("\"%s\" was not played", @text)
-                  )
+                switch @soundsDevice.config.class
+                  when "GoogleDevice"
+                    @soundsDevice.playFile(fullFilename, (Number newVolume), newDuration)
+                    .then(()=>
+                      env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume
+                      return __("\"%s\" was played ", @text)
+                    ).catch((err)=>
+                      env.logger.debug "Error in playFile: " + err
+                      return __("\"%s\" was not played", @text)
+                    )
+                  when "ChromecastDevice"
+                    @soundsDevice.playFile(fullFilename, (Number newVolume), newDuration)
+                    .then(()=>
+                      env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume + ", _duration " + newDuration
+                      return __("\"%s\" was played ", @text)
+                    ).catch((err)=>
+                      env.logger.debug "Error in playFile: " + err
+                      return __("\"%s\" was not played", @text)
+                    )
+                  else
+                    @soundsDevice.playAnnouncement(fullFilename, (Number newVolume), @text, newDuration)
+                    .then(()=>
+                      env.logger.debug 'Playing ' + fullFilename + " with volume " + newVolume + ", duration " + newDuration
+                      return __("\"%s\" was played ", @text)
+                    ).catch((err)=>
+                      env.logger.debug "Error in playAnnouncement: " + err
+                      return __("\"%s\" was not played", @text)
+                    )
               )
 
             when "site"
@@ -2455,7 +2485,6 @@ module.exports = (env) ->
                     return __("\"%s\" was not played", @text)
                   )
               )
-
 
             when "vol"
               @text = "volume set"
