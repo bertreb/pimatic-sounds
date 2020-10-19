@@ -1905,6 +1905,11 @@ module.exports = (env) ->
         reject("Not implemented")
       )
 
+    playSite: (_file) =>
+      return new Promise((resolve,reject) =>
+        reject("Not implemented")
+      )
+
     setAnnouncement: (_announcement) =>
       @announcementText = _announcement
 

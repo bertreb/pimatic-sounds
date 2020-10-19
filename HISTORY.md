@@ -119,6 +119,6 @@
 	* replaying fix
 * 20201018, v0.2.4
 	* improve startup info
-* 20201019, v0.2.6
+* 20201019, v0.2.7
 	* fix duration
 	* add Play File to SonosDevice
