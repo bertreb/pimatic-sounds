@@ -117,3 +117,7 @@
 	* small fix and debug info
 * 20201017, v0.2.3
 	* replaying fix
+* 20201018, v0.2.4
+	* improve startup info
+* 20201019, v0.2.5
+	* fix duration

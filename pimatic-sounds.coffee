@@ -461,8 +461,8 @@ module.exports = (env) ->
       .then((info)=>
         @mainVolume = Math.round(info.volume * 100)
         if info.state in @playingStates # is "PLAYING" or info.state is "BUFFERING" or info.state is "PAUSED"          
-          @setPlayingState({state:info.state, url:info.url, media:info.media, info:info.media.title, volume:@mainVolume})
-          @setAttr("info", info.media.title)
+          @setPlayingState({state:info.state, url:info.url, media:info.media, info:info.media.metadata.title, volume:@mainVolume})
+          @setAttr("info", info.media.metadata.title)
           @setAttr("status", info.state.toLowerCase())
         @setAttr("volume", @mainVolume)
         @setPlayingState({volume: @mainVolume})
@@ -534,7 +534,9 @@ module.exports = (env) ->
                           _playingDevice.media = status.media
                           if status.media?.duration?
                             _playingDevice.duration = status.media.duration * 1000
-                            if _playingDevice.duration is 0 then _playingDevice.duration = null                        
+                            if _playingDevice.duration is 0 then _playingDevice.duration = null
+                            #else
+                            #  _playingDevice.duration = null           
                         _playingDevice.state = status.playerState
                         @setPlayingState(_playingDevice)
                         @setAttr "status", status.playerState.toLowerCase()
@@ -864,14 +866,14 @@ module.exports = (env) ->
 
         exec(_command)
         .then((resp)=>
-          env.logger.debug "Cast_site " + _command
+          env.logger.debug "Cast " + _command
           return @setVolume(_volume)
         )
         .then(()=>
           unless _duration?
             _duration = _playingDevice.duration
           env.logger.debug "Cast for " + _duration
-          if _duration?
+          if _duration? and _duration > 0
             @durationTimer = setTimeout(()=>
               env.logger.debug "Cast_site ends"
               @stop()
@@ -942,7 +944,12 @@ module.exports = (env) ->
           #env.logger.debug("_status: " + JSON.stringify(_status,null,2))
           @status["state"] = _status.player_state ? "IDLE"
           @status["url"] = _status.content_id ? ""
-          @status["media"] = _status.media_metadata ? null
+          _media = 
+            metadata: _status.media_metadata ? null
+            contentId: _status.content_id
+            contentType: _status.content_type
+            duration: _status.duration
+          @status["media"] = _media
           @status["volume"] = _status.volume_level ? 0.2
           env.logger.debug("GetInfo: " + JSON.stringify(@status,null,2))
           resolve @status
