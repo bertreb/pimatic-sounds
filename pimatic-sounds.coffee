@@ -651,7 +651,7 @@ module.exports = (env) ->
                 if status.playerState is "IDLE" and status.idleReason is "FINISHED"
                   @setAttr "status", "idle"
                   @setAttr "info", ""                
-                  @stopCasting()
+                  @stop()
                   .then(() =>
                     env.logger.debug "Casting stopped"
                     @setPlayingState({state:"IDLE"})
@@ -682,7 +682,7 @@ module.exports = (env) ->
                   @announcement = false
                   if err?
                     env.logger.debug 'Error handled in playing announcement: ' + err
-                    @stopCasting()
+                    @stop()
                     .then(()=>
                       #env.logger.debug("@deviceReplaying " + @getReplayingState() + ", @deviceReplayingUrl: " + @replayingDevice.url + ", @deviceReplayingVolume " + @replayingDevice.volume)                    
                       _replayingDevice = @getReplayingState()
@@ -2032,6 +2032,16 @@ module.exports = (env) ->
         resolve()
       )
 
+    playFile: (_file) =>
+      return new Promise((resolve,reject) =>
+        reject("Not implemented")
+      )
+
+    playSite: (_file) =>
+      return new Promise((resolve,reject) =>
+        reject("Not implemented")
+      )
+
     stop: () =>
       return new Promise((resolve,reject) =>
         device.stop()
@@ -2304,7 +2314,7 @@ module.exports = (env) ->
                     return __("\"%s\" was not played", @text)
                   )
                 else
-                  env.logger.debug "Creating sound file... with text: " + @text
+                  env.logger.debug "Creating sound file with text: " + @text
                   @soundsDevice.gtts.save((@soundsDevice.soundsDir + "/" + @soundsDevice.textFilename), @text, () =>
                     ###
                     if err?

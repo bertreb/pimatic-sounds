@@ -122,3 +122,6 @@
 * 20201019, v0.2.7
 	* fix duration
 	* add Play File to SonosDevice
+* 20201026, v0.2.8
+	* removed the ...
+	* changes announcement stop to catt
