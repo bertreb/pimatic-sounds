@@ -127,3 +127,5 @@
 	* changes announcement stop to catt
 * 20201026, v0.2.11
 	* changes announcement catt
+* 20201027, v0.2.12
+	* changes announcement catt
