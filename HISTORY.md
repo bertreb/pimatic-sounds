@@ -129,3 +129,5 @@
 	* changes announcement catt
 * 20201027, v0.2.12
 	* changes announcement catt
+* 20201027, v0.2.13
+	* removed catt in play text

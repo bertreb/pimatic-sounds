@@ -682,7 +682,7 @@ module.exports = (env) ->
                   @announcement = false
                   if err?
                     env.logger.debug 'Error handled in playing announcement: ' + err
-                    @stop()
+                    @stopCasting()
                     .then(()=>
                       #env.logger.debug("@deviceReplaying " + @getReplayingState() + ", @deviceReplayingUrl: " + @replayingDevice.url + ", @deviceReplayingVolume " + @replayingDevice.volume)                    
                       _replayingDevice = @getReplayingState()
@@ -698,6 +698,9 @@ module.exports = (env) ->
                     ).catch((err)=> env.logger.debug "Error in restoring after announcement " + err)
                     resolve()
                     return
+                  unless duration
+                    if status.media.duration
+                      duration = status.media.duration * 1000 + 1000
                   if duration #?
                     env.logger.debug "Playing announcement on device '" + @id + ", duration " + duration
                     @durationTimer = setTimeout(() =>
@@ -2534,7 +2537,8 @@ module.exports = (env) ->
               env.logger.debug 'error: unknown playtype'
               return __("\"%s\" unknown playtype", @soundType)
 
-          return __("\"%s\" executed", @text)
+          return __("executed")
+          #return __("\"%s\" executed",@text)
         catch err
           @soundsDevice.deviceStatus = off
           env.logger.debug "Device offline, start onlineChecker " + err
