@@ -132,4 +132,6 @@
 * 20201027, v0.2.13
 	* removed catt in play text
 * 20201029, v0.2.14
-	* addedd updated catt function
+	* added updated catt function
+* 20201030, v0.2.15
+	* update status and info fields on play
