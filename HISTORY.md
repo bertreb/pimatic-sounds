@@ -135,3 +135,5 @@
 	* added updated catt function
 * 20201030, v0.2.15
 	* update status and info fields on play
+* 20201125, v0.2.16
+	* removed playing audio response on command

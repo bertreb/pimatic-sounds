@@ -1961,6 +1961,7 @@ module.exports = (env) ->
         needle('post',@ipAssistant, @bodyConvers, @opts)
         .then((resp)=>
           env.logger.debug "Convers response: " + JSON.stringify(resp.body,null,2)
+          ###
           if resp.body.audio?
             _url = @assistantRelayIp + ':' + @assistantRelayPort + resp.body.audio
             _url = 'http://' + _url unless _url.startsWith('http://')
@@ -1975,6 +1976,7 @@ module.exports = (env) ->
             )
           else
             reject("no assistant audio answer received")
+          ###
         )
         .catch((err)=>
           env.logger.debug("error conversation handled: " + err)
